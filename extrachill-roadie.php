@@ -26,3 +26,4 @@ define( 'EXTRACHILL_ROADIE_PLUGIN_FILE', __FILE__ );
 define( 'EXTRACHILL_ROADIE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/tools/register.php';
+require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/permissions.php';
