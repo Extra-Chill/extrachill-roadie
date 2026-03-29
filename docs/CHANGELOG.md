@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.3.0] - 2026-03-29
+
+### Added
+- add team membership bridge to DM agent access
+
 ## [0.2.0] - 2026-03-29
 
 ### Added
