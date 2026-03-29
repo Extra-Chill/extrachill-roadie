@@ -1,18 +1,18 @@
 {
-  "id": "extrachill-agent-kit",
+  "id": "extrachill-roadie",
   "changelog_target": "docs/CHANGELOG.md",
-  "remote_path": "wp-content/plugins/extrachill-agent-kit",
+  "remote_path": "wp-content/plugins/extrachill-roadie",
   "extensions": {
     "wordpress": {}
   },
   "version_targets": [
     {
-      "file": "extrachill-agent-kit.php",
+      "file": "extrachill-roadie.php",
       "pattern": "Version:\\s*([\\d.]+)"
     },
     {
-      "file": "extrachill-agent-kit.php",
-      "pattern": "EC_AGENT_KIT_VERSION',\\s*'([\\d.]+)"
+      "file": "extrachill-roadie.php",
+      "pattern": "EXTRACHILL_ROADIE_VERSION',\\s*'([\\d.]+)"
     }
   ]
 }

@@ -9,7 +9,7 @@
  *
  * Tools are only registered when Data Machine is active (BaseTool class exists).
  *
- * @package ExtraChillAgentKit\Tools
+ * @package ExtraChillRoadie\Tools
  * @since 0.1.0
  */
 
@@ -35,9 +35,9 @@ add_action(
 		require_once __DIR__ . '/class-manage-user-profile.php';
 		require_once __DIR__ . '/class-manage-community.php';
 
-		new ECAgentKit_ManageArtistProfile();
-		new ECAgentKit_ManageLinkPage();
-		new ECAgentKit_ManageUserProfile();
-		new ECAgentKit_ManageCommunity();
+		new ECRoadie_ManageArtistProfile();
+		new ECRoadie_ManageLinkPage();
+		new ECRoadie_ManageUserProfile();
+		new ECRoadie_ManageCommunity();
 	}
 );

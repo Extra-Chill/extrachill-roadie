@@ -6,7 +6,7 @@
  * Wraps extrachill-artist-platform abilities with cross-site execution and
  * convenience actions (add_link, remove_link) that handle fetch-modify-save internally.
  *
- * @package ExtraChillAgentKit\Tools
+ * @package ExtraChillRoadie\Tools
  * @since 0.1.0
  */
 
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use DataMachine\Engine\AI\Tools\BaseTool;
 
-class ECAgentKit_ManageLinkPage extends BaseTool {
+class ECRoadie_ManageLinkPage extends BaseTool {
 
 	public function __construct() {
 		$this->registerTool(

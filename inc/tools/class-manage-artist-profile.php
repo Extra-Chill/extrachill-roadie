@@ -5,7 +5,7 @@
  * Chat tool for creating, reading, and updating artist profiles.
  * Wraps extrachill-artist-platform abilities with cross-site execution.
  *
- * @package ExtraChillAgentKit\Tools
+ * @package ExtraChillRoadie\Tools
  * @since 0.1.0
  */
 
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use DataMachine\Engine\AI\Tools\BaseTool;
 
-class ECAgentKit_ManageArtistProfile extends BaseTool {
+class ECRoadie_ManageArtistProfile extends BaseTool {
 
 	public function __construct() {
 		$this->registerTool(

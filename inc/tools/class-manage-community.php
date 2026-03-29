@@ -6,7 +6,7 @@
  * Browse forums, create topics, post replies, and manage notifications.
  * Wraps extrachill-community abilities with cross-site execution.
  *
- * @package ExtraChillAgentKit\Tools
+ * @package ExtraChillRoadie\Tools
  * @since 0.1.0
  */
 
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use DataMachine\Engine\AI\Tools\BaseTool;
 
-class ECAgentKit_ManageCommunity extends BaseTool {
+class ECRoadie_ManageCommunity extends BaseTool {
 
 	public function __construct() {
 		$this->registerTool(

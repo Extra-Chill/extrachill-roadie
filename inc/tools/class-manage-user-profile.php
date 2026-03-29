@@ -5,7 +5,7 @@
  * Chat tool for reading and updating the current user's profile — bio,
  * custom title, city, and profile links. Wraps extrachill-users abilities.
  *
- * @package ExtraChillAgentKit\Tools
+ * @package ExtraChillRoadie\Tools
  * @since 0.1.0
  */
 
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use DataMachine\Engine\AI\Tools\BaseTool;
 
-class ECAgentKit_ManageUserProfile extends BaseTool {
+class ECRoadie_ManageUserProfile extends BaseTool {
 
 	public function __construct() {
 		$this->registerTool(
