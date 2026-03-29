@@ -79,16 +79,21 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		$action = $parameters['action'] ?? '';
 
-		return match ( $action ) {
-			'list'   => $this->handle_list(),
-			'get'    => $this->handle_get( $parameters ),
-			'create' => $this->handle_create( $parameters ),
-			'update' => $this->handle_update( $parameters ),
-			default  => $this->buildErrorResponse(
-				'Invalid action "' . $action . '". Use: list, get, create, update.',
-				'manage_artist_profile'
-			),
-		};
+		switch ( $action ) {
+			case 'list':
+				return $this->handle_list();
+			case 'get':
+				return $this->handle_get( $parameters );
+			case 'create':
+				return $this->handle_create( $parameters );
+			case 'update':
+				return $this->handle_update( $parameters );
+			default:
+				return $this->buildErrorResponse(
+					'Invalid action "' . $action . '". Use: list, get, create, update.',
+					'manage_artist_profile'
+				);
+		}
 	}
 
 	/**
@@ -338,9 +343,9 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 	 * Resolve the artist ID from parameters or auto-detect from user meta.
 	 *
 	 * @param array $parameters Tool parameters.
-	 * @return int|array Artist ID on success, or error/disambiguation response array.
+	 * @return int|array<string,mixed> Artist ID on success, or error/disambiguation response array.
 	 */
-	private function resolve_artist_id( array $parameters ): int|array {
+	private function resolve_artist_id( array $parameters ) {
 		if ( ! empty( $parameters['artist_id'] ) ) {
 			return (int) $parameters['artist_id'];
 		}

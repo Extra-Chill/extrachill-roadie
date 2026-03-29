@@ -100,19 +100,27 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		$action = $parameters['action'] ?? '';
 
-		return match ( $action ) {
-			'get'           => $this->handle_get( $parameters ),
-			'add_link'      => $this->handle_add_link( $parameters ),
-			'remove_link'   => $this->handle_remove_link( $parameters ),
-			'save_links'    => $this->handle_save_links( $parameters ),
-			'save_socials'  => $this->handle_save_socials( $parameters ),
-			'save_styles'   => $this->handle_save_styles( $parameters ),
-			'save_settings' => $this->handle_save_settings( $parameters ),
-			default         => $this->buildErrorResponse(
-				'Invalid action "' . $action . '". Use: get, add_link, remove_link, save_links, save_socials, save_styles, save_settings.',
-				'manage_link_page'
-			),
-		};
+		switch ( $action ) {
+			case 'get':
+				return $this->handle_get( $parameters );
+			case 'add_link':
+				return $this->handle_add_link( $parameters );
+			case 'remove_link':
+				return $this->handle_remove_link( $parameters );
+			case 'save_links':
+				return $this->handle_save_links( $parameters );
+			case 'save_socials':
+				return $this->handle_save_socials( $parameters );
+			case 'save_styles':
+				return $this->handle_save_styles( $parameters );
+			case 'save_settings':
+				return $this->handle_save_settings( $parameters );
+			default:
+				return $this->buildErrorResponse(
+					'Invalid action "' . $action . '". Use: get, add_link, remove_link, save_links, save_socials, save_styles, save_settings.',
+					'manage_link_page'
+				);
+		}
 	}
 
 	/**
@@ -407,9 +415,9 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 	 * Resolve the artist ID from parameters or auto-detect from user meta.
 	 *
 	 * @param array $parameters Tool parameters.
-	 * @return int|array Artist ID on success, or error/disambiguation response array.
+	 * @return int|array<string,mixed> Artist ID on success, or error/disambiguation response array.
 	 */
-	private function resolve_artist_id( array $parameters ): int|array {
+	private function resolve_artist_id( array $parameters ) {
 		if ( ! empty( $parameters['artist_id'] ) ) {
 			return (int) $parameters['artist_id'];
 		}

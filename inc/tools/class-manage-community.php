@@ -90,19 +90,27 @@ class ECRoadie_ManageCommunity extends BaseTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		$action = $parameters['action'] ?? '';
 
-		return match ( $action ) {
-			'list_forums'              => $this->handle_list_forums(),
-			'list_topics'              => $this->handle_list_topics( $parameters ),
-			'get_topic'                => $this->handle_get_topic( $parameters ),
-			'create_topic'             => $this->handle_create_topic( $parameters ),
-			'create_reply'             => $this->handle_create_reply( $parameters ),
-			'get_notifications'        => $this->handle_get_notifications( $parameters ),
-			'mark_notifications_read'  => $this->handle_mark_notifications_read(),
-			default                    => $this->buildErrorResponse(
-				'Invalid action "' . $action . '". Use: list_forums, list_topics, get_topic, create_topic, create_reply, get_notifications, mark_notifications_read.',
-				'manage_community'
-			),
-		};
+		switch ( $action ) {
+			case 'list_forums':
+				return $this->handle_list_forums();
+			case 'list_topics':
+				return $this->handle_list_topics( $parameters );
+			case 'get_topic':
+				return $this->handle_get_topic( $parameters );
+			case 'create_topic':
+				return $this->handle_create_topic( $parameters );
+			case 'create_reply':
+				return $this->handle_create_reply( $parameters );
+			case 'get_notifications':
+				return $this->handle_get_notifications( $parameters );
+			case 'mark_notifications_read':
+				return $this->handle_mark_notifications_read();
+			default:
+				return $this->buildErrorResponse(
+					'Invalid action "' . $action . '". Use: list_forums, list_topics, get_topic, create_topic, create_reply, get_notifications, mark_notifications_read.',
+					'manage_community'
+				);
+		}
 	}
 
 	/**

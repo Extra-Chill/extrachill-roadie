@@ -64,15 +64,19 @@ class ECRoadie_ManageUserProfile extends BaseTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		$action = $parameters['action'] ?? '';
 
-		return match ( $action ) {
-			'get'          => $this->handle_get(),
-			'update'       => $this->handle_update( $parameters ),
-			'update_links' => $this->handle_update_links( $parameters ),
-			default        => $this->buildErrorResponse(
-				'Invalid action "' . $action . '". Use: get, update, update_links.',
-				'manage_user_profile'
-			),
-		};
+		switch ( $action ) {
+			case 'get':
+				return $this->handle_get();
+			case 'update':
+				return $this->handle_update( $parameters );
+			case 'update_links':
+				return $this->handle_update_links( $parameters );
+			default:
+				return $this->buildErrorResponse(
+					'Invalid action "' . $action . '". Use: get, update, update_links.',
+					'manage_user_profile'
+				);
+		}
 	}
 
 	/**
