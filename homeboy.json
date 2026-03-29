@@ -1,0 +1,18 @@
+{
+  "id": "extrachill-agent-kit",
+  "changelog_target": "docs/CHANGELOG.md",
+  "remote_path": "wp-content/plugins/extrachill-agent-kit",
+  "extensions": {
+    "wordpress": {}
+  },
+  "version_targets": [
+    {
+      "file": "extrachill-agent-kit.php",
+      "pattern": "Version:\\s*([\\d.]+)"
+    },
+    {
+      "file": "extrachill-agent-kit.php",
+      "pattern": "EC_AGENT_KIT_VERSION',\\s*'([\\d.]+)"
+    }
+  ]
+}
