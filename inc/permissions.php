@@ -10,6 +10,63 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use DataMachine\Core\Database\Agents\Agents;
+
+/**
+ * Canonical Roadie agent slug.
+ */
+const EXTRACHILL_ROADIE_AGENT_SLUG = 'roadie';
+
+/**
+ * Canonical Roadie agent name.
+ */
+const EXTRACHILL_ROADIE_AGENT_NAME = 'Roadie';
+
+/**
+ * Explicit WordPress user IDs allowed to use Roadie in Beeper.
+ *
+ * qrisg = 38
+ * indigxld = 34
+ * chubes = 1
+ *
+ * @since 0.3.1
+ * @return int[]
+ */
+function extrachill_roadie_allowed_user_ids(): array {
+	return array( 1, 34, 38 );
+}
+
+/**
+ * Resolve redirect URIs allowed for browser-based bridge auth.
+ *
+ * Keep this explicit and auditable. Same-site callbacks are already allowed by
+ * Data Machine core; this filter is for external bridge callback URLs.
+ *
+ * Override in environment-specific code with:
+ * add_filter( 'extrachill_roadie_allowed_redirect_uris', fn() => array( ... ) );
+ *
+ * @since 0.3.1
+ * @return string[]
+ */
+function extrachill_roadie_allowed_redirect_uris(): array {
+	$defaults = array();
+
+	/**
+	 * Filter the external redirect URIs allowed for Roadie authorization.
+	 *
+	 * @since 0.3.1
+	 *
+	 * @param string[] $defaults Default patterns.
+	 */
+	$uris = apply_filters( 'extrachill_roadie_allowed_redirect_uris', $defaults );
+
+	if ( ! is_array( $uris ) ) {
+		return $defaults;
+	}
+
+	return array_values( array_filter( array_map( 'strval', $uris ) ) );
+}
+
 /**
  * Grant team members access to the roadie agent.
  *
@@ -37,7 +94,12 @@ function extrachill_roadie_team_access_bridge( bool $can_access, int $agent_id, 
 		return $can_access;
 	}
 
-	// Check EC team membership.
+	// Explicit allowlist for remote Roadie usage.
+	if ( in_array( $user_id, extrachill_roadie_allowed_user_ids(), true ) ) {
+		return true;
+	}
+
+	// Keep the existing team-membership bridge as a secondary path.
 	if ( function_exists( 'ec_is_team_member' ) && ec_is_team_member( $user_id ) ) {
 		return true;
 	}
@@ -68,19 +130,91 @@ function extrachill_roadie_get_agent_id(): int {
 		return $agent_id;
 	}
 
-	$config = data_machine_frontend_chat_get_config();
-	if ( empty( $config['agent_slug'] ) ) {
-		return $agent_id;
-	}
-
-	if ( ! function_exists( 'data_machine_frontend_chat_resolve_agent' ) ) {
-		return $agent_id;
-	}
-
-	$agent = data_machine_frontend_chat_resolve_agent( $config['agent_slug'] );
+	$agent = extrachill_roadie_get_agent();
 	if ( $agent && ! empty( $agent['agent_id'] ) ) {
 		$agent_id = (int) $agent['agent_id'];
 	}
 
 	return $agent_id;
+}
+
+/**
+ * Get the canonical Roadie agent row.
+ *
+ * @since 0.3.1
+ * @return array|null
+ */
+function extrachill_roadie_get_agent(): ?array {
+	static $agent = null;
+
+	if ( null !== $agent ) {
+		return $agent;
+	}
+
+	if ( ! class_exists( Agents::class ) ) {
+		return null;
+	}
+
+	$repo  = new Agents();
+	$agent = $repo->get_by_slug( EXTRACHILL_ROADIE_AGENT_SLUG );
+
+	return $agent;
+}
+
+/**
+ * Ensure Roadie exists and its auth policy stays explicit.
+ *
+ * - canonical slug/name
+ * - active status
+ * - explicit redirect allowlist for external bridge callbacks
+ *
+ * This is intentionally narrow and auditable.
+ *
+ * @since 0.3.1
+ * @return void
+ */
+function extrachill_roadie_sync_agent_policy(): void {
+	if ( ! class_exists( Agents::class ) ) {
+		return;
+	}
+
+	$repo  = new Agents();
+	$agent = $repo->get_by_slug( EXTRACHILL_ROADIE_AGENT_SLUG );
+
+	if ( ! $agent ) {
+		return;
+	}
+
+	$config               = is_array( $agent['agent_config'] ?? null ) ? $agent['agent_config'] : array();
+	$existing_redirects   = array_values( array_filter( array_map( 'strval', $config['allowed_redirect_uris'] ?? array() ) ) );
+	$configured_redirects = extrachill_roadie_allowed_redirect_uris();
+	$merged_redirects     = array_values( array_unique( array_merge( $existing_redirects, $configured_redirects ) ) );
+
+	$needs_update = false;
+
+	if ( ( $agent['agent_name'] ?? '' ) !== EXTRACHILL_ROADIE_AGENT_NAME ) {
+		$needs_update = true;
+	}
+
+	if ( ( $agent['status'] ?? '' ) !== 'active' ) {
+		$needs_update = true;
+	}
+
+	if ( $merged_redirects !== $existing_redirects ) {
+		$needs_update = true;
+	}
+
+	if ( ! $needs_update ) {
+		return;
+	}
+
+	$config['allowed_redirect_uris'] = $merged_redirects;
+
+	$updates = array(
+		'agent_name'   => EXTRACHILL_ROADIE_AGENT_NAME,
+		'status'       => 'active',
+		'agent_config' => $config,
+	);
+
+	$repo->update_agent( (int) $agent['agent_id'], $updates );
 }
