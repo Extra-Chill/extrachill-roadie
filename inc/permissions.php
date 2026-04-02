@@ -23,20 +23,6 @@ const EXTRACHILL_ROADIE_AGENT_SLUG = 'roadie';
 const EXTRACHILL_ROADIE_AGENT_NAME = 'Roadie';
 
 /**
- * Explicit WordPress user IDs allowed to use Roadie in Beeper.
- *
- * qrisg = 38
- * indigxld = 34
- * chubes = 1
- *
- * @since 0.3.1
- * @return int[]
- */
-function extrachill_roadie_allowed_user_ids(): array {
-	return array( 1, 34, 38 );
-}
-
-/**
  * Resolve redirect URIs allowed for browser-based bridge auth.
  *
  * Keep this explicit and auditable. Same-site callbacks are already allowed by
@@ -94,12 +80,7 @@ function extrachill_roadie_team_access_bridge( bool $can_access, int $agent_id, 
 		return $can_access;
 	}
 
-	// Explicit allowlist for remote Roadie usage.
-	if ( in_array( $user_id, extrachill_roadie_allowed_user_ids(), true ) ) {
-		return true;
-	}
-
-	// Keep the existing team-membership bridge as a secondary path.
+	// Use the existing Extra Chill team access bridge as the source of truth.
 	if ( function_exists( 'ec_is_team_member' ) && ec_is_team_member( $user_id ) ) {
 		return true;
 	}
