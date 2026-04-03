@@ -4,7 +4,10 @@
  *
  * Chat tool for interacting with the Extra Chill community forums.
  * Browse forums, create topics, post replies, and manage notifications.
- * Wraps extrachill-community abilities with cross-site execution.
+ *
+ * Uses ec_cross_site_rest_request() for all operations, routing through
+ * the REST API on the community site. The API route affinity middleware
+ * handles forwarding automatically when called from any site.
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.1.0
@@ -117,26 +120,28 @@ class ECRoadie_ManageCommunity extends BaseTool {
 	 * List all available forums.
 	 */
 	private function handle_list_forums(): array {
-		return $this->execute_on_community_blog( 'extrachill/community-list-forums', array() );
+		return $this->rest_request( 'GET', '/community/forums' );
 	}
 
 	/**
 	 * List topics with optional forum filter and pagination.
 	 */
 	private function handle_list_topics( array $parameters ): array {
-		$input = array();
+		$query = array();
 
 		if ( ! empty( $parameters['forum_id'] ) ) {
-			$input['forum_id'] = (int) $parameters['forum_id'];
+			$query['forum_id'] = (int) $parameters['forum_id'];
 		}
 		if ( ! empty( $parameters['page'] ) ) {
-			$input['page'] = (int) $parameters['page'];
+			$query['page'] = (int) $parameters['page'];
 		}
 		if ( ! empty( $parameters['per_page'] ) ) {
-			$input['per_page'] = (int) $parameters['per_page'];
+			$query['per_page'] = (int) $parameters['per_page'];
 		}
 
-		return $this->execute_on_community_blog( 'extrachill/community-list-topics', $input );
+		return $this->rest_request( 'GET', '/community/topics', array(
+			'query' => $query,
+		) );
 	}
 
 	/**
@@ -149,19 +154,21 @@ class ECRoadie_ManageCommunity extends BaseTool {
 			return $this->buildErrorResponse( 'topic_id is required.', 'manage_community' );
 		}
 
-		$input = array( 'topic_id' => (int) $topic_id );
+		$query = array();
 
 		if ( array_key_exists( 'include_replies', $parameters ) ) {
-			$input['include_replies'] = (bool) $parameters['include_replies'];
+			$query['include_replies'] = (bool) $parameters['include_replies'];
 		}
 		if ( ! empty( $parameters['page'] ) ) {
-			$input['replies_page'] = (int) $parameters['page'];
+			$query['replies_page'] = (int) $parameters['page'];
 		}
 		if ( ! empty( $parameters['per_page'] ) ) {
-			$input['replies_per_page'] = (int) $parameters['per_page'];
+			$query['replies_per_page'] = (int) $parameters['per_page'];
 		}
 
-		return $this->execute_on_community_blog( 'extrachill/community-get-topic', $input );
+		return $this->rest_request( 'GET', '/community/topics/' . (int) $topic_id, array(
+			'query' => $query,
+		) );
 	}
 
 	/**
@@ -174,7 +181,7 @@ class ECRoadie_ManageCommunity extends BaseTool {
 
 		if ( empty( $forum_id ) ) {
 			// Provide helpful guidance about available forums.
-			$forums = $this->execute_on_community_blog( 'extrachill/community-list-forums', array() );
+			$forums   = $this->handle_list_forums();
 			$guidance = '';
 			if ( ( $forums['success'] ?? false ) && ! empty( $forums['data']['forums'] ) ) {
 				$names = array_map(
@@ -206,14 +213,13 @@ class ECRoadie_ManageCommunity extends BaseTool {
 			return $this->buildErrorResponse( 'content is required to create a topic.', 'manage_community' );
 		}
 
-		$input = array(
-			'forum_id' => (int) $forum_id,
-			'title'    => $title,
-			'content'  => $content,
-			'user_id'  => get_current_user_id(),
-		);
-
-		$result = $this->execute_on_community_blog( 'extrachill/community-create-topic', $input );
+		$result = $this->rest_request( 'POST', '/community/topics', array(
+			'body' => array(
+				'forum_id' => (int) $forum_id,
+				'title'    => $title,
+				'content'  => $content,
+			),
+		) );
 
 		if ( $result['success'] ?? false ) {
 			$result['message'] = 'Topic created successfully.';
@@ -236,17 +242,18 @@ class ECRoadie_ManageCommunity extends BaseTool {
 			return $this->buildErrorResponse( 'content is required to post a reply.', 'manage_community' );
 		}
 
-		$input = array(
+		$body = array(
 			'topic_id' => (int) $topic_id,
 			'content'  => $content,
-			'user_id'  => get_current_user_id(),
 		);
 
 		if ( ! empty( $parameters['reply_to'] ) ) {
-			$input['reply_to'] = (int) $parameters['reply_to'];
+			$body['reply_to'] = (int) $parameters['reply_to'];
 		}
 
-		$result = $this->execute_on_community_blog( 'extrachill/community-create-reply', $input );
+		$result = $this->rest_request( 'POST', '/community/replies', array(
+			'body' => $body,
+		) );
 
 		if ( $result['success'] ?? false ) {
 			$result['message'] = 'Reply posted successfully.';
@@ -259,26 +266,22 @@ class ECRoadie_ManageCommunity extends BaseTool {
 	 * Get the current user's notifications.
 	 */
 	private function handle_get_notifications( array $parameters ): array {
-		$input = array(
-			'user_id' => get_current_user_id(),
-		);
+		$query = array();
 
 		if ( isset( $parameters['unread'] ) ) {
-			$input['unread'] = (bool) $parameters['unread'];
+			$query['unread'] = (bool) $parameters['unread'];
 		}
 
-		return $this->execute_on_community_blog( 'extrachill/community-get-notifications', $input );
+		return $this->rest_request( 'GET', '/community/notifications', array(
+			'query' => $query,
+		) );
 	}
 
 	/**
 	 * Mark all notifications as read.
 	 */
 	private function handle_mark_notifications_read(): array {
-		$input = array(
-			'user_id' => get_current_user_id(),
-		);
-
-		$result = $this->execute_on_community_blog( 'extrachill/community-mark-notifications-read', $input );
+		$result = $this->rest_request( 'POST', '/community/notifications/mark-read' );
 
 		if ( $result['success'] ?? false ) {
 			$result['message'] = 'All notifications marked as read.';
@@ -288,36 +291,24 @@ class ECRoadie_ManageCommunity extends BaseTool {
 	}
 
 	/**
-	 * Execute an ability on the community blog with automatic blog switching.
+	 * Make a REST API request via the cross-site helper.
 	 *
-	 * @param string $ability_slug Ability slug.
-	 * @param array  $input        Ability input.
-	 * @return array Tool response.
+	 * Always routes to the community site via ec_cross_site_rest_request().
+	 *
+	 * @param string $method HTTP method.
+	 * @param string $path   REST path (e.g. '/community/topics').
+	 * @param array  $args   Optional request args (query, body, headers).
+	 * @return array Tool response array.
 	 */
-	private function execute_on_community_blog( string $ability_slug, array $input ): array {
-		$community_blog = $this->get_community_blog_id();
-
-		if ( $community_blog ) {
-			switch_to_blog( $community_blog );
-		}
-
-		$ability = wp_get_ability( $ability_slug );
-		$result  = null;
-
-		if ( $ability ) {
-			$result = $ability->execute( $input );
-		}
-
-		if ( $community_blog ) {
-			restore_current_blog();
-		}
-
-		if ( ! $ability ) {
+	private function rest_request( string $method, string $path, array $args = array() ): array {
+		if ( ! function_exists( 'ec_cross_site_rest_request' ) ) {
 			return $this->buildErrorResponse(
-				'Community forums are not available on this network.',
+				'Cross-site REST helper not available. Ensure extrachill-multisite is active.',
 				'manage_community'
 			);
 		}
+
+		$result = ec_cross_site_rest_request( 'community', $method, $path, $args );
 
 		if ( is_wp_error( $result ) ) {
 			return $this->buildErrorResponse(
@@ -331,17 +322,5 @@ class ECRoadie_ManageCommunity extends BaseTool {
 			'data'      => $result,
 			'tool_name' => 'manage_community',
 		);
-	}
-
-	/**
-	 * Get the blog ID for the community site.
-	 *
-	 * @return int|null Blog ID or null if multisite helper unavailable.
-	 */
-	private function get_community_blog_id(): ?int {
-		if ( function_exists( 'ec_get_blog_id' ) ) {
-			return ec_get_blog_id( 'community' );
-		}
-		return null;
 	}
 }

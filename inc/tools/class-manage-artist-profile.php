@@ -3,7 +3,8 @@
  * Manage Artist Profile Tool
  *
  * Chat tool for creating, reading, and updating artist profiles.
- * Wraps extrachill-artist-platform abilities with cross-site execution.
+ * Uses ec_cross_site_rest_request() to route through the REST API
+ * on the artist site, where abilities are properly loaded.
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.1.0
@@ -98,6 +99,10 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 
 	/**
 	 * List the current user's artist profiles.
+	 *
+	 * Artist IDs are stored in user meta (network-wide), but we need to
+	 * read post data from the artist blog via switch_to_blog (safe for
+	 * data reads — only abilities fail cross-site).
 	 */
 	private function handle_list(): array {
 		$user_id    = get_current_user_id();
@@ -117,6 +122,7 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 			);
 		}
 
+		// Read post data from the artist blog (switch_to_blog is safe for reads).
 		$artists    = array();
 		$artist_blog = $this->get_artist_blog_id();
 
@@ -160,41 +166,7 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 			return $artist_id; // Error or disambiguation response.
 		}
 
-		$artist_blog = $this->get_artist_blog_id();
-		if ( $artist_blog ) {
-			switch_to_blog( $artist_blog );
-		}
-
-		$ability = wp_get_ability( 'extrachill/get-artist-data' );
-		$result  = null;
-
-		if ( $ability ) {
-			$result = $ability->execute( array( 'artist_id' => $artist_id ) );
-		}
-
-		if ( $artist_blog ) {
-			restore_current_blog();
-		}
-
-		if ( ! $ability ) {
-			return $this->buildErrorResponse(
-				'Artist platform is not available on this network.',
-				'manage_artist_profile'
-			);
-		}
-
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_artist_profile'
-			);
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'tool_name' => 'manage_artist_profile',
-		);
+		return $this->rest_request( 'GET', '/artists/' . $artist_id );
 	}
 
 	/**
@@ -210,65 +182,27 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 			);
 		}
 
-		$user_id = get_current_user_id();
-		$input   = array(
-			'name'    => $name,
-			'user_id' => $user_id,
-		);
+		$body = array( 'name' => $name );
 
 		if ( ! empty( $parameters['bio'] ) ) {
-			$input['bio'] = $parameters['bio'];
+			$body['bio'] = $parameters['bio'];
 		}
 		if ( ! empty( $parameters['genre'] ) ) {
-			$input['genre'] = $parameters['genre'];
+			$body['genre'] = $parameters['genre'];
 		}
 		if ( ! empty( $parameters['local_city'] ) ) {
-			$input['local_city'] = $parameters['local_city'];
+			$body['local_city'] = $parameters['local_city'];
 		}
 
-		$artist_blog = $this->get_artist_blog_id();
-		if ( $artist_blog ) {
-			switch_to_blog( $artist_blog );
+		$result = $this->rest_request( 'POST', '/artists', array(
+			'body' => $body,
+		) );
+
+		if ( $result['success'] ?? false ) {
+			$result['message'] = 'Artist profile created successfully.';
 		}
 
-		$ability = wp_get_ability( 'extrachill/create-artist' );
-		$result  = null;
-
-		if ( $ability ) {
-			$result = $ability->execute( $input );
-		}
-
-		if ( $artist_blog ) {
-			restore_current_blog();
-		}
-
-		if ( ! $ability ) {
-			return $this->buildErrorResponse(
-				'Artist platform is not available on this network.',
-				'manage_artist_profile'
-			);
-		}
-
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_artist_profile'
-			);
-		}
-
-		if ( ! $this->isAbilitySuccess( $result ) ) {
-			return $this->buildErrorResponse(
-				$this->getAbilityError( $result, 'Failed to create artist profile.' ),
-				'manage_artist_profile'
-			);
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'message'   => 'Artist profile created successfully.',
-			'tool_name' => 'manage_artist_profile',
-		);
+		return $result;
 	}
 
 	/**
@@ -281,62 +215,32 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 			return $artist_id; // Error or disambiguation response.
 		}
 
-		// Check the user can manage this artist.
-		if ( function_exists( 'ec_can_manage_artist' ) ) {
-			if ( ! ec_can_manage_artist( get_current_user_id(), $artist_id ) ) {
-				return $this->buildErrorResponse(
-					'You do not have permission to manage this artist profile.',
-					'manage_artist_profile'
-				);
-			}
-		}
-
-		$input = array( 'artist_id' => $artist_id );
+		$body = array();
 
 		// Only include fields that were actually provided.
 		$fields = array( 'name', 'bio', 'genre', 'local_city', 'profile_image_id', 'header_image_id' );
 		foreach ( $fields as $field ) {
 			if ( array_key_exists( $field, $parameters ) ) {
-				$input[ $field ] = $parameters[ $field ];
+				$body[ $field ] = $parameters[ $field ];
 			}
 		}
 
-		$artist_blog = $this->get_artist_blog_id();
-		if ( $artist_blog ) {
-			switch_to_blog( $artist_blog );
-		}
-
-		$ability = wp_get_ability( 'extrachill/update-artist' );
-		$result  = null;
-
-		if ( $ability ) {
-			$result = $ability->execute( $input );
-		}
-
-		if ( $artist_blog ) {
-			restore_current_blog();
-		}
-
-		if ( ! $ability ) {
+		if ( empty( $body ) ) {
 			return $this->buildErrorResponse(
-				'Artist platform is not available on this network.',
+				'At least one field to update is required.',
 				'manage_artist_profile'
 			);
 		}
 
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_artist_profile'
-			);
+		$result = $this->rest_request( 'PUT', '/artists/' . $artist_id, array(
+			'body' => $body,
+		) );
+
+		if ( $result['success'] ?? false ) {
+			$result['message'] = 'Artist profile updated successfully.';
 		}
 
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'message'   => 'Artist profile updated successfully.',
-			'tool_name' => 'manage_artist_profile',
-		);
+		return $result;
 	}
 
 	/**
@@ -372,6 +276,7 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 		}
 
 		// Multiple artists — need disambiguation.
+		// Read post data from the artist blog (switch_to_blog is safe for reads).
 		$artists    = array();
 		$artist_blog = $this->get_artist_blog_id();
 
@@ -394,14 +299,48 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 		}
 
 		return array(
-			'success'   => false,
-			'error'     => 'You manage multiple artist profiles. Please specify which one.',
+			'success'    => false,
+			'error'      => 'You manage multiple artist profiles. Please specify which one.',
 			'error_type' => 'validation',
-			'tool_name' => 'manage_artist_profile',
-			'data'      => array(
+			'tool_name'  => 'manage_artist_profile',
+			'data'       => array(
 				'artists'     => $artists,
 				'instruction' => 'Ask the user which artist they want to manage, then re-call with artist_id.',
 			),
+		);
+	}
+
+	/**
+	 * Make a REST API request via the cross-site helper.
+	 *
+	 * Always routes to the artist site via ec_cross_site_rest_request().
+	 *
+	 * @param string $method HTTP method.
+	 * @param string $path   REST path (e.g. '/artists/123').
+	 * @param array  $args   Optional request args (query, body, headers).
+	 * @return array Tool response array.
+	 */
+	private function rest_request( string $method, string $path, array $args = array() ): array {
+		if ( ! function_exists( 'ec_cross_site_rest_request' ) ) {
+			return $this->buildErrorResponse(
+				'Cross-site REST helper not available. Ensure extrachill-multisite is active.',
+				'manage_artist_profile'
+			);
+		}
+
+		$result = ec_cross_site_rest_request( 'artist', $method, $path, $args );
+
+		if ( is_wp_error( $result ) ) {
+			return $this->buildErrorResponse(
+				$result->get_error_message(),
+				'manage_artist_profile'
+			);
+		}
+
+		return array(
+			'success'   => true,
+			'data'      => $result,
+			'tool_name' => 'manage_artist_profile',
 		);
 	}
 

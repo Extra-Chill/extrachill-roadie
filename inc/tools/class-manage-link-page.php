@@ -3,8 +3,10 @@
  * Manage Link Page Tool
  *
  * Chat tool for managing artist link pages — links, social links, styles, and settings.
- * Wraps extrachill-artist-platform abilities with cross-site execution and
- * convenience actions (add_link, remove_link) that handle fetch-modify-save internally.
+ * Uses ec_cross_site_rest_request() to route through the REST API on the artist site.
+ *
+ * Convenience actions (add_link, remove_link) handle fetch-modify-save internally
+ * so the AI doesn't need to orchestrate multi-step operations.
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.1.0
@@ -132,7 +134,7 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 			return $artist_id;
 		}
 
-		return $this->execute_on_artist_blog( 'extrachill/get-link-page-data', array( 'artist_id' => $artist_id ) );
+		return $this->rest_request( 'GET', '/artists/' . $artist_id . '/links' );
 	}
 
 	/**
@@ -160,7 +162,7 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 		$section_title = $parameters['section'] ?? '';
 
 		// Fetch current link page data to get existing links.
-		$current = $this->execute_on_artist_blog( 'extrachill/get-link-page-data', array( 'artist_id' => $artist_id ) );
+		$current = $this->rest_request( 'GET', '/artists/' . $artist_id . '/links' );
 
 		if ( ! ( $current['success'] ?? false ) ) {
 			return $current;
@@ -202,9 +204,8 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 			'link_url'  => $url,
 		);
 
-		return $this->execute_on_artist_blog( 'extrachill/save-link-page-links', array(
-			'artist_id' => $artist_id,
-			'links'     => $sections,
+		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
+			'body' => array( 'links' => $sections ),
 		) );
 	}
 
@@ -228,7 +229,7 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 		}
 
 		// Fetch current links.
-		$current = $this->execute_on_artist_blog( 'extrachill/get-link-page-data', array( 'artist_id' => $artist_id ) );
+		$current = $this->rest_request( 'GET', '/artists/' . $artist_id . '/links' );
 
 		if ( ! ( $current['success'] ?? false ) ) {
 			return $current;
@@ -258,9 +259,8 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 			);
 		}
 
-		return $this->execute_on_artist_blog( 'extrachill/save-link-page-links', array(
-			'artist_id' => $artist_id,
-			'links'     => $sections,
+		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
+			'body' => array( 'links' => $sections ),
 		) );
 	}
 
@@ -278,9 +278,8 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 			return $this->buildErrorResponse( 'links array is required.', 'manage_link_page' );
 		}
 
-		return $this->execute_on_artist_blog( 'extrachill/save-link-page-links', array(
-			'artist_id' => $artist_id,
-			'links'     => $links,
+		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
+			'body' => array( 'links' => $links ),
 		) );
 	}
 
@@ -298,9 +297,8 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 			return $this->buildErrorResponse( 'socials array is required.', 'manage_link_page' );
 		}
 
-		return $this->execute_on_artist_blog( 'extrachill/save-social-links', array(
-			'artist_id'    => $artist_id,
-			'social_links' => $socials,
+		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
+			'body' => array( 'socials' => $socials ),
 		) );
 	}
 
@@ -318,9 +316,8 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 			return $this->buildErrorResponse( 'css_vars object is required.', 'manage_link_page' );
 		}
 
-		return $this->execute_on_artist_blog( 'extrachill/save-link-page-styles', array(
-			'artist_id' => $artist_id,
-			'css_vars'  => $css_vars,
+		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
+			'body' => array( 'css_vars' => $css_vars ),
 		) );
 	}
 
@@ -333,82 +330,28 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 			return $artist_id;
 		}
 
-		$input = array( 'artist_id' => $artist_id );
+		$body = array();
 
 		if ( isset( $parameters['settings'] ) && is_array( $parameters['settings'] ) ) {
-			$input['settings'] = $parameters['settings'];
+			$body['settings'] = $parameters['settings'];
 		}
 		if ( array_key_exists( 'background_image_id', $parameters ) ) {
-			$input['background_image_id'] = (int) $parameters['background_image_id'];
+			$body['background_image_id'] = (int) $parameters['background_image_id'];
 		}
 		if ( array_key_exists( 'profile_image_id', $parameters ) ) {
-			$input['profile_image_id'] = (int) $parameters['profile_image_id'];
+			$body['profile_image_id'] = (int) $parameters['profile_image_id'];
 		}
 
-		if ( count( $input ) <= 1 ) {
+		if ( empty( $body ) ) {
 			return $this->buildErrorResponse(
 				'At least one of settings, background_image_id, or profile_image_id is required.',
 				'manage_link_page'
 			);
 		}
 
-		return $this->execute_on_artist_blog( 'extrachill/save-link-page-settings', $input );
-	}
-
-	/**
-	 * Execute an ability on the artist blog with automatic blog switching.
-	 *
-	 * @param string $ability_slug Ability slug.
-	 * @param array  $input        Ability input.
-	 * @return array Tool response.
-	 */
-	private function execute_on_artist_blog( string $ability_slug, array $input ): array {
-		$artist_blog = $this->get_artist_blog_id();
-
-		if ( $artist_blog ) {
-			switch_to_blog( $artist_blog );
-		}
-
-		$ability = wp_get_ability( $ability_slug );
-		$result  = null;
-
-		if ( $ability ) {
-			$result = $ability->execute( $input );
-		}
-
-		if ( $artist_blog ) {
-			restore_current_blog();
-		}
-
-		if ( ! $ability ) {
-			return $this->buildErrorResponse(
-				'Artist platform is not available on this network.',
-				'manage_link_page'
-			);
-		}
-
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_link_page'
-			);
-		}
-
-		// Some abilities return a raw data array without 'success' key.
-		$is_error = is_array( $result ) && isset( $result['success'] ) && false === $result['success'];
-
-		if ( $is_error ) {
-			return $this->buildErrorResponse(
-				$this->getAbilityError( $result, 'Operation failed.' ),
-				'manage_link_page'
-			);
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'tool_name' => 'manage_link_page',
-		);
+		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
+			'body' => $body,
+		) );
 	}
 
 	/**
@@ -444,6 +387,7 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 		}
 
 		// Multiple artists — need disambiguation.
+		// Read post data from the artist blog (switch_to_blog is safe for reads).
 		$artists    = array();
 		$artist_blog = $this->get_artist_blog_id();
 
@@ -474,6 +418,48 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 				'artists'     => $artists,
 				'instruction' => 'Ask the user which artist they want to manage, then re-call with artist_id.',
 			),
+		);
+	}
+
+	/**
+	 * Make a REST API request via the cross-site helper.
+	 *
+	 * Always routes to the artist site via ec_cross_site_rest_request().
+	 *
+	 * @param string $method HTTP method.
+	 * @param string $path   REST path (e.g. '/artists/123/links').
+	 * @param array  $args   Optional request args (query, body, headers).
+	 * @return array Tool response array.
+	 */
+	private function rest_request( string $method, string $path, array $args = array() ): array {
+		if ( ! function_exists( 'ec_cross_site_rest_request' ) ) {
+			return $this->buildErrorResponse(
+				'Cross-site REST helper not available. Ensure extrachill-multisite is active.',
+				'manage_link_page'
+			);
+		}
+
+		$result = ec_cross_site_rest_request( 'artist', $method, $path, $args );
+
+		if ( is_wp_error( $result ) ) {
+			return $this->buildErrorResponse(
+				$result->get_error_message(),
+				'manage_link_page'
+			);
+		}
+
+		// Some abilities return a raw data array without 'success' key.
+		$is_error = is_array( $result ) && isset( $result['success'] ) && false === $result['success'];
+
+		if ( $is_error ) {
+			$error_msg = $result['message'] ?? $result['error'] ?? 'Operation failed.';
+			return $this->buildErrorResponse( $error_msg, 'manage_link_page' );
+		}
+
+		return array(
+			'success'   => true,
+			'data'      => $result,
+			'tool_name' => 'manage_link_page',
 		);
 	}
 
