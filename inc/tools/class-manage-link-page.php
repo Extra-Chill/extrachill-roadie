@@ -3,7 +3,8 @@
  * Manage Link Page Tool
  *
  * Chat tool for managing artist link pages — links, social links, styles, and settings.
- * Uses ec_cross_site_rest_request() to route through the REST API on the artist site.
+ * Uses the cross-site REST helper from ECRoadie_PlatformTool to route
+ * requests to the artist site via internal HTTP.
  *
  * Convenience actions (add_link, remove_link) handle fetch-modify-save internally
  * so the AI doesn't need to orchestrate multi-step operations.
@@ -16,9 +17,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use DataMachine\Engine\AI\Tools\BaseTool;
+class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 
-class ECRoadie_ManageLinkPage extends BaseTool {
+	protected string $site_key  = 'artist';
+	protected string $tool_slug = 'manage_link_page';
 
 	public function __construct() {
 		$this->registerTool(
@@ -388,8 +390,8 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 
 		// Multiple artists — need disambiguation.
 		// Read post data from the artist blog (switch_to_blog is safe for reads).
-		$artists    = array();
-		$artist_blog = $this->get_artist_blog_id();
+		$artists     = array();
+		$artist_blog = $this->get_blog_id( 'artist' );
 
 		if ( $artist_blog ) {
 			switch_to_blog( $artist_blog );
@@ -422,48 +424,6 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 	}
 
 	/**
-	 * Make a REST API request via the cross-site helper.
-	 *
-	 * Always routes to the artist site via ec_cross_site_rest_request().
-	 *
-	 * @param string $method HTTP method.
-	 * @param string $path   REST path (e.g. '/artists/123/links').
-	 * @param array  $args   Optional request args (query, body, headers).
-	 * @return array Tool response array.
-	 */
-	private function rest_request( string $method, string $path, array $args = array() ): array {
-		if ( ! function_exists( 'ec_cross_site_rest_request' ) ) {
-			return $this->buildErrorResponse(
-				'Cross-site REST helper not available. Ensure extrachill-multisite is active.',
-				'manage_link_page'
-			);
-		}
-
-		$result = ec_cross_site_rest_request( 'artist', $method, $path, $args );
-
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_link_page'
-			);
-		}
-
-		// Some abilities return a raw data array without 'success' key.
-		$is_error = is_array( $result ) && isset( $result['success'] ) && false === $result['success'];
-
-		if ( $is_error ) {
-			$error_msg = $result['message'] ?? $result['error'] ?? 'Operation failed.';
-			return $this->buildErrorResponse( $error_msg, 'manage_link_page' );
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'tool_name' => 'manage_link_page',
-		);
-	}
-
-	/**
 	 * Get the user's artist profile IDs from user meta.
 	 */
 	private function get_user_artist_ids( int $user_id ): array {
@@ -474,13 +434,4 @@ class ECRoadie_ManageLinkPage extends BaseTool {
 		return array_values( array_filter( $ids ) );
 	}
 
-	/**
-	 * Get the blog ID for the artist site.
-	 */
-	private function get_artist_blog_id(): ?int {
-		if ( function_exists( 'ec_get_blog_id' ) ) {
-			return ec_get_blog_id( 'artist' );
-		}
-		return null;
-	}
 }

@@ -3,8 +3,8 @@
  * Manage Artist Profile Tool
  *
  * Chat tool for creating, reading, and updating artist profiles.
- * Uses ec_cross_site_rest_request() to route through the REST API
- * on the artist site, where abilities are properly loaded.
+ * Uses the cross-site REST helper from ECRoadie_PlatformTool to route
+ * requests to the artist site, where abilities are properly loaded.
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.1.0
@@ -14,9 +14,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use DataMachine\Engine\AI\Tools\BaseTool;
+class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 
-class ECRoadie_ManageArtistProfile extends BaseTool {
+	protected string $site_key  = 'artist';
+	protected string $tool_slug = 'manage_artist_profile';
 
 	public function __construct() {
 		$this->registerTool(
@@ -123,8 +124,8 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 		}
 
 		// Read post data from the artist blog (switch_to_blog is safe for reads).
-		$artists    = array();
-		$artist_blog = $this->get_artist_blog_id();
+		$artists     = array();
+		$artist_blog = $this->get_blog_id( 'artist' );
 
 		if ( $artist_blog ) {
 			switch_to_blog( $artist_blog );
@@ -277,8 +278,8 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 
 		// Multiple artists — need disambiguation.
 		// Read post data from the artist blog (switch_to_blog is safe for reads).
-		$artists    = array();
-		$artist_blog = $this->get_artist_blog_id();
+		$artists     = array();
+		$artist_blog = $this->get_blog_id( 'artist' );
 
 		if ( $artist_blog ) {
 			switch_to_blog( $artist_blog );
@@ -311,40 +312,6 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 	}
 
 	/**
-	 * Make a REST API request via the cross-site helper.
-	 *
-	 * Always routes to the artist site via ec_cross_site_rest_request().
-	 *
-	 * @param string $method HTTP method.
-	 * @param string $path   REST path (e.g. '/artists/123').
-	 * @param array  $args   Optional request args (query, body, headers).
-	 * @return array Tool response array.
-	 */
-	private function rest_request( string $method, string $path, array $args = array() ): array {
-		if ( ! function_exists( 'ec_cross_site_rest_request' ) ) {
-			return $this->buildErrorResponse(
-				'Cross-site REST helper not available. Ensure extrachill-multisite is active.',
-				'manage_artist_profile'
-			);
-		}
-
-		$result = ec_cross_site_rest_request( 'artist', $method, $path, $args );
-
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_artist_profile'
-			);
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'tool_name' => 'manage_artist_profile',
-		);
-	}
-
-	/**
 	 * Get the user's artist profile IDs from user meta.
 	 *
 	 * @param int $user_id WordPress user ID.
@@ -360,15 +327,4 @@ class ECRoadie_ManageArtistProfile extends BaseTool {
 		return array_values( array_filter( $ids ) );
 	}
 
-	/**
-	 * Get the blog ID for the artist site.
-	 *
-	 * @return int|null Blog ID or null if multisite helper unavailable.
-	 */
-	private function get_artist_blog_id(): ?int {
-		if ( function_exists( 'ec_get_blog_id' ) ) {
-			return ec_get_blog_id( 'artist' );
-		}
-		return null;
-	}
 }

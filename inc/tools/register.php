@@ -30,6 +30,7 @@ add_action(
 			return;
 		}
 
+		require_once __DIR__ . '/class-ec-platform-tool.php';
 		require_once __DIR__ . '/class-manage-artist-profile.php';
 		require_once __DIR__ . '/class-manage-link-page.php';
 		require_once __DIR__ . '/class-manage-user-profile.php';

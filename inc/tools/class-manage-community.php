@@ -5,8 +5,8 @@
  * Chat tool for interacting with the Extra Chill community forums.
  * Browse forums, create topics, post replies, and manage notifications.
  *
- * Uses ec_cross_site_rest_request() for all operations, routing through
- * the REST API on the community site. The API route affinity middleware
+ * Uses the cross-site REST helper from ECRoadie_PlatformTool to route
+ * requests to the community site. The API route affinity middleware
  * handles forwarding automatically when called from any site.
  *
  * @package ExtraChillRoadie\Tools
@@ -17,9 +17,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use DataMachine\Engine\AI\Tools\BaseTool;
+class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 
-class ECRoadie_ManageCommunity extends BaseTool {
+	protected string $site_key  = 'community';
+	protected string $tool_slug = 'manage_community';
 
 	public function __construct() {
 		$this->registerTool(
@@ -290,37 +291,4 @@ class ECRoadie_ManageCommunity extends BaseTool {
 		return $result;
 	}
 
-	/**
-	 * Make a REST API request via the cross-site helper.
-	 *
-	 * Always routes to the community site via ec_cross_site_rest_request().
-	 *
-	 * @param string $method HTTP method.
-	 * @param string $path   REST path (e.g. '/community/topics').
-	 * @param array  $args   Optional request args (query, body, headers).
-	 * @return array Tool response array.
-	 */
-	private function rest_request( string $method, string $path, array $args = array() ): array {
-		if ( ! function_exists( 'ec_cross_site_rest_request' ) ) {
-			return $this->buildErrorResponse(
-				'Cross-site REST helper not available. Ensure extrachill-multisite is active.',
-				'manage_community'
-			);
-		}
-
-		$result = ec_cross_site_rest_request( 'community', $method, $path, $args );
-
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_community'
-			);
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'tool_name' => 'manage_community',
-		);
-	}
 }
