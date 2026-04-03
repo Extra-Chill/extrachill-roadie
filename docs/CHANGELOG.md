@@ -2,6 +2,15 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.4.0] - 2026-04-03
+
+### Added
+- add bridge onboarding config for Roadie agent
+- sync Roadie auth policy for Beeper access
+
+### Fixed
+- rely on Data Machine access APIs for Roadie
+
 ## [0.3.0] - 2026-03-29
 
 ### Added
