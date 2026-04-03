@@ -2,6 +2,14 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.4.1] - 2026-04-03
+
+### Changed
+- extract shared cross-site REST logic into ECRoadie_PlatformTool base class
+
+### Fixed
+- replace switch_to_blog with cross-site REST for all tools
+
 ## [0.4.0] - 2026-04-03
 
 ### Added
