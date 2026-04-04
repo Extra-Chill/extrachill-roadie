@@ -3,19 +3,26 @@
  * Manage User Profile Tool
  *
  * Chat tool for reading and updating the current user's profile — bio,
- * custom title, city, and profile links. Wraps extrachill-users abilities.
+ * custom title, city, and profile links. Routes requests through the
+ * REST API for architectural consistency with other platform tools.
+ *
+ * User profile routes have no site affinity (extrachill-users is
+ * network-activated), so requests work from any site. We use 'main'
+ * as the site_key to ensure the API plugin is loaded.
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.1.0
+ * @since 0.5.0 Refactored to use ECRoadie_PlatformTool + REST.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use DataMachine\Engine\AI\Tools\BaseTool;
+class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 
-class ECRoadie_ManageUserProfile extends BaseTool {
+	protected string $site_key  = 'main';
+	protected string $tool_slug = 'manage_user_profile';
 
 	public function __construct() {
 		$this->registerTool(
@@ -83,96 +90,53 @@ class ECRoadie_ManageUserProfile extends BaseTool {
 	 * Get the current user's profile.
 	 */
 	private function handle_get(): array {
-		$user_id = get_current_user_id();
-
-		if ( ! $user_id ) {
+		if ( ! get_current_user_id() ) {
 			return $this->buildErrorResponse( 'You must be logged in.', 'manage_user_profile' );
 		}
 
-		$ability = wp_get_ability( 'extrachill/get-user-profile' );
-
-		if ( ! $ability ) {
-			return $this->buildErrorResponse(
-				'User profile system is not available.',
-				'manage_user_profile'
-			);
-		}
-
-		$result = $ability->execute( array( 'user_id' => $user_id ) );
-
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_user_profile'
-			);
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'tool_name' => 'manage_user_profile',
-		);
+		return $this->rest_request( 'GET', '/users/me/profile' );
 	}
 
 	/**
 	 * Update the current user's profile fields.
 	 */
 	private function handle_update( array $parameters ): array {
-		$user_id = get_current_user_id();
-
-		if ( ! $user_id ) {
+		if ( ! get_current_user_id() ) {
 			return $this->buildErrorResponse( 'You must be logged in.', 'manage_user_profile' );
 		}
 
-		$input = array( 'user_id' => $user_id );
+		$body = array();
 
 		$fields = array( 'custom_title', 'bio', 'local_city' );
 		foreach ( $fields as $field ) {
 			if ( array_key_exists( $field, $parameters ) ) {
-				$input[ $field ] = $parameters[ $field ];
+				$body[ $field ] = $parameters[ $field ];
 			}
 		}
 
-		if ( count( $input ) <= 1 ) {
+		if ( empty( $body ) ) {
 			return $this->buildErrorResponse(
 				'At least one field is required: custom_title, bio, or local_city.',
 				'manage_user_profile'
 			);
 		}
 
-		$ability = wp_get_ability( 'extrachill/update-user-profile' );
+		$result = $this->rest_request( 'POST', '/users/me/profile', array(
+			'body' => $body,
+		) );
 
-		if ( ! $ability ) {
-			return $this->buildErrorResponse(
-				'User profile system is not available.',
-				'manage_user_profile'
-			);
+		if ( $result['success'] ?? false ) {
+			$result['message'] = 'Profile updated successfully.';
 		}
 
-		$result = $ability->execute( $input );
-
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_user_profile'
-			);
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'message'   => 'Profile updated successfully.',
-			'tool_name' => 'manage_user_profile',
-		);
+		return $result;
 	}
 
 	/**
 	 * Replace the current user's profile links.
 	 */
 	private function handle_update_links( array $parameters ): array {
-		$user_id = get_current_user_id();
-
-		if ( ! $user_id ) {
+		if ( ! get_current_user_id() ) {
 			return $this->buildErrorResponse( 'You must be logged in.', 'manage_user_profile' );
 		}
 
@@ -182,39 +146,14 @@ class ECRoadie_ManageUserProfile extends BaseTool {
 			return $this->buildErrorResponse( 'links array is required.', 'manage_user_profile' );
 		}
 
-		$ability = wp_get_ability( 'extrachill/update-user-links' );
-
-		if ( ! $ability ) {
-			return $this->buildErrorResponse(
-				'User profile system is not available.',
-				'manage_user_profile'
-			);
-		}
-
-		$result = $ability->execute( array(
-			'user_id' => $user_id,
-			'links'   => $links,
+		$result = $this->rest_request( 'POST', '/users/me/links', array(
+			'body' => array( 'links' => $links ),
 		) );
 
-		if ( is_wp_error( $result ) ) {
-			return $this->buildErrorResponse(
-				$result->get_error_message(),
-				'manage_user_profile'
-			);
+		if ( $result['success'] ?? false ) {
+			$result['message'] = 'Profile links updated successfully.';
 		}
 
-		if ( ! $this->isAbilitySuccess( $result ) ) {
-			return $this->buildErrorResponse(
-				$this->getAbilityError( $result, 'Failed to update profile links.' ),
-				'manage_user_profile'
-			);
-		}
-
-		return array(
-			'success'   => true,
-			'data'      => $result,
-			'message'   => 'Profile links updated successfully.',
-			'tool_name' => 'manage_user_profile',
-		);
+		return $result;
 	}
 }
