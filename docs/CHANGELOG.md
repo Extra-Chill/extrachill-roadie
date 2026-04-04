@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.4.2] - 2026-04-04
+
+### Changed
+- convert manage_user_profile to use ECRoadie_PlatformTool + REST
+
 ## [0.4.1] - 2026-04-03
 
 ### Changed
