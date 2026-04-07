@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.5.0] - 2026-04-07
+
+### Added
+- add EC-to-DM token bridge CSS for frontend chat widget
+
 ## [0.4.2] - 2026-04-04
 
 ### Changed
