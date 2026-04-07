@@ -1,0 +1,40 @@
+/**
+ * Extra Chill Roadie — Token Bridge
+ *
+ * Maps Extra Chill theme tokens to Data Machine frontend chat
+ * --datamachine-* custom properties. This is the EC-specific glue
+ * that makes the generic DM chat widget look native on EC sites.
+ *
+ * DM core tokens (shared across DM plugins):
+ *   EC theme → --datamachine-text-primary, --datamachine-border-1, etc.
+ *
+ * FAB-specific tokens (frontend chat widget):
+ *   EC theme → --datamachine-fab-bg, --datamachine-drawer-bg, etc.
+ *
+ * @package ExtraChillRoadie
+ * @since 0.5.0
+ */
+
+:root {
+	/* Data Machine core tokens ← EC theme tokens */
+	--datamachine-text-primary: var(--text-color, #333);
+	--datamachine-text-muted: var(--muted-text, #757575);
+	--datamachine-border-1: var(--border-color, #dcdcde);
+	--datamachine-bg-light: var(--card-background, #f9f9f9);
+	--datamachine-bg-lighter: var(--background-color, #f8f9fa);
+	--datamachine-blue: var(--accent, #0073aa);
+	--datamachine-color-error: var(--error-color, #d63638);
+	--datamachine-spacing-xs: var(--spacing-sm, 12px);
+	--datamachine-spacing-md: var(--spacing-md, 16px);
+	--datamachine-spacing-lg: var(--spacing-lg, 24px);
+	--datamachine-font-family: var(--font-family-body, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+
+	/* FAB widget tokens ← EC theme tokens */
+	--datamachine-fab-bg: var(--header-background, #1a1a2e);
+	--datamachine-fab-color: var(--header-text-color, #fff);
+	--datamachine-fab-border-color: var(--border-color, transparent);
+	--datamachine-fab-font-family: var(--font-family-heading, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+	--datamachine-fab-font-size: var(--font-size-base, 15px);
+	--datamachine-drawer-bg: var(--card-background, #f1f5f9);
+	--datamachine-header-font-family: var(--font-family-heading, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+}
