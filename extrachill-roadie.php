@@ -12,6 +12,7 @@
  * Requires at least: 6.9
  * Tested up to: 6.9
  * Requires PHP: 7.4
+ * Requires Plugins: data-machine
  *
  * @package ExtraChillRoadie
  * @since 0.1.0
