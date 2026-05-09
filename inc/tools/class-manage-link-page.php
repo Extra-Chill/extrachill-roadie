@@ -37,66 +37,60 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 			'method'      => 'handle_tool_call',
 			'description' => 'Manage an artist\'s link page on Extra Chill. Can get the full link page, add/remove individual links, replace all links, update social links, change visual styles (colors, fonts, button shapes), and update settings (redirects, tracking pixels, subscribe mode). The artist_id is auto-resolved if the user has only one artist.',
 			'parameters'  => array(
-				'action'     => array(
-					'type'        => 'string',
-					'required'    => true,
-					'description' => 'Action: "get" (view link page), "add_link" (add a single link), "remove_link" (remove a link by URL or ID), "save_links" (replace all link sections), "save_socials" (replace social links), "save_styles" (update CSS variables), "save_settings" (update settings like redirects, tracking, subscribe mode)',
+				'type'       => 'object',
+				'properties' => array(
+					'action'              => array(
+						'type'        => 'string',
+						'description' => 'Action: "get" (view link page), "add_link" (add a single link), "remove_link" (remove a link by URL or ID), "save_links" (replace all link sections), "save_socials" (replace social links), "save_styles" (update CSS variables), "save_settings" (update settings like redirects, tracking, subscribe mode)',
+					),
+					'artist_id'           => array(
+						'type'        => 'integer',
+						'description' => 'Artist profile ID. Auto-resolved if user has one artist.',
+					),
+					'url'                 => array(
+						'type'        => 'string',
+						'description' => 'Link URL. Used in "add_link" (required) and "remove_link" (to identify by URL).',
+					),
+					'text'                => array(
+						'type'        => 'string',
+						'description' => 'Link display text. Used in "add_link".',
+					),
+					'section'             => array(
+						'type'        => 'string',
+						'description' => 'Section title to add the link to. Used in "add_link". Defaults to the first section.',
+					),
+					'link_id'             => array(
+						'type'        => 'string',
+						'description' => 'Link ID to remove. Used in "remove_link" as alternative to URL.',
+					),
+					'links'               => array(
+						'type'        => 'array',
+						'items'       => array( 'type' => 'object' ),
+						'description' => 'Full array of link sections for "save_links". Each section: {section_title, links: [{link_text, link_url, expires_at?}]}.',
+					),
+					'socials'             => array(
+						'type'        => 'array',
+						'items'       => array( 'type' => 'object' ),
+						'description' => 'Array of social links for "save_socials". Each: {type, url}. Types: apple_music, bandcamp, bluesky, facebook, github, instagram, patreon, pinterest, soundcloud, spotify, substack, tiktok, twitch, twitter_x, venmo, website, youtube, custom.',
+					),
+					'css_vars'            => array(
+						'type'        => 'object',
+						'description' => 'CSS variables for "save_styles". Keys must start with "--link-page-". Examples: --link-page-button-bg-color, --link-page-text-color, --link-page-background-color, --link-page-button-radius, --link-page-title-font-family, --link-page-profile-img-shape (circle/square/rectangle).',
+					),
+					'settings'            => array(
+						'type'        => 'object',
+						'description' => 'Settings for "save_settings". Keys: link_expiration_enabled (bool), redirect_enabled (bool), redirect_target_url (string), youtube_embed_enabled (bool), meta_pixel_id, google_tag_id, google_tag_manager_id, subscribe_display_mode (icon_modal/inline_form/disabled), subscribe_description, social_icons_position (above/below), profile_image_shape (circle/square/rectangle).',
+					),
+					'background_image_id' => array(
+						'type'        => 'integer',
+						'description' => 'Attachment ID for background image. Pass 0 to remove. Used in "save_settings".',
+					),
+					'profile_image_id'    => array(
+						'type'        => 'integer',
+						'description' => 'Attachment ID for profile image. Pass 0 to remove. Used in "save_settings".',
+					),
 				),
-				'artist_id'  => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Artist profile ID. Auto-resolved if user has one artist.',
-				),
-				'url'        => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Link URL. Used in "add_link" (required) and "remove_link" (to identify by URL).',
-				),
-				'text'       => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Link display text. Used in "add_link".',
-				),
-				'section'    => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Section title to add the link to. Used in "add_link". Defaults to the first section.',
-				),
-				'link_id'    => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Link ID to remove. Used in "remove_link" as alternative to URL.',
-				),
-				'links'      => array(
-					'type'        => 'array',
-					'required'    => false,
-					'description' => 'Full array of link sections for "save_links". Each section: {section_title, links: [{link_text, link_url, expires_at?}]}.',
-				),
-				'socials'    => array(
-					'type'        => 'array',
-					'required'    => false,
-					'description' => 'Array of social links for "save_socials". Each: {type, url}. Types: apple_music, bandcamp, bluesky, facebook, github, instagram, patreon, pinterest, soundcloud, spotify, substack, tiktok, twitch, twitter_x, venmo, website, youtube, custom.',
-				),
-				'css_vars'   => array(
-					'type'        => 'object',
-					'required'    => false,
-					'description' => 'CSS variables for "save_styles". Keys must start with "--link-page-". Examples: --link-page-button-bg-color, --link-page-text-color, --link-page-background-color, --link-page-button-radius, --link-page-title-font-family, --link-page-profile-img-shape (circle/square/rectangle).',
-				),
-				'settings'   => array(
-					'type'        => 'object',
-					'required'    => false,
-					'description' => 'Settings for "save_settings". Keys: link_expiration_enabled (bool), redirect_enabled (bool), redirect_target_url (string), youtube_embed_enabled (bool), meta_pixel_id, google_tag_id, google_tag_manager_id, subscribe_display_mode (icon_modal/inline_form/disabled), subscribe_description, social_icons_position (above/below), profile_image_shape (circle/square/rectangle).',
-				),
-				'background_image_id' => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Attachment ID for background image. Pass 0 to remove. Used in "save_settings".',
-				),
-				'profile_image_id'    => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Attachment ID for profile image. Pass 0 to remove. Used in "save_settings".',
-				),
+				'required'   => array( 'action' ),
 			),
 		);
 	}

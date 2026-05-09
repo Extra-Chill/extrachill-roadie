@@ -37,56 +37,50 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 			'method'      => 'handle_tool_call',
 			'description' => 'Interact with the Extra Chill community forums. Browse forums, list and read topics, create new topics, post replies, and manage notifications. All actions run on community.extrachill.com.',
 			'parameters'  => array(
-				'action'          => array(
-					'type'        => 'string',
-					'required'    => true,
-					'description' => 'Action: "list_forums" (browse available forums), "list_topics" (list topics in a forum or all), "get_topic" (read a topic with replies), "create_topic" (post a new topic), "create_reply" (reply to a topic), "get_notifications" (check notifications), "mark_notifications_read" (mark all as read)',
+				'type'       => 'object',
+				'properties' => array(
+					'action'          => array(
+						'type'        => 'string',
+						'description' => 'Action: "list_forums" (browse available forums), "list_topics" (list topics in a forum or all), "get_topic" (read a topic with replies), "create_topic" (post a new topic), "create_reply" (reply to a topic), "get_notifications" (check notifications), "mark_notifications_read" (mark all as read)',
+					),
+					'forum_id'        => array(
+						'type'        => 'integer',
+						'description' => 'Forum ID. Required for "create_topic". Optional filter for "list_topics".',
+					),
+					'topic_id'        => array(
+						'type'        => 'integer',
+						'description' => 'Topic ID. Required for "get_topic", "create_reply".',
+					),
+					'title'           => array(
+						'type'        => 'string',
+						'description' => 'Topic title. Required for "create_topic".',
+					),
+					'content'         => array(
+						'type'        => 'string',
+						'description' => 'Post content (HTML allowed). Required for "create_topic" and "create_reply".',
+					),
+					'reply_to'        => array(
+						'type'        => 'integer',
+						'description' => 'Parent reply ID for threaded replies. Used in "create_reply".',
+					),
+					'page'            => array(
+						'type'        => 'integer',
+						'description' => 'Page number for paginated results. Default: 1.',
+					),
+					'per_page'        => array(
+						'type'        => 'integer',
+						'description' => 'Results per page (max 100). Default: 20 for topics, 30 for replies.',
+					),
+					'include_replies' => array(
+						'type'        => 'boolean',
+						'description' => 'Include replies when getting a topic. Default: true.',
+					),
+					'unread'          => array(
+						'type'        => 'boolean',
+						'description' => 'Only return unread notifications. Used in "get_notifications".',
+					),
 				),
-				'forum_id'        => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Forum ID. Required for "create_topic". Optional filter for "list_topics".',
-				),
-				'topic_id'        => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Topic ID. Required for "get_topic", "create_reply".',
-				),
-				'title'           => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Topic title. Required for "create_topic".',
-				),
-				'content'         => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Post content (HTML allowed). Required for "create_topic" and "create_reply".',
-				),
-				'reply_to'        => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Parent reply ID for threaded replies. Used in "create_reply".',
-				),
-				'page'            => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Page number for paginated results. Default: 1.',
-				),
-				'per_page'        => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Results per page (max 100). Default: 20 for topics, 30 for replies.',
-				),
-				'include_replies' => array(
-					'type'        => 'boolean',
-					'required'    => false,
-					'description' => 'Include replies when getting a topic. Default: true.',
-				),
-				'unread'          => array(
-					'type'        => 'boolean',
-					'required'    => false,
-					'description' => 'Only return unread notifications. Used in "get_notifications".',
-				),
+				'required'   => array( 'action' ),
 			),
 		);
 	}

@@ -39,31 +39,31 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 			'method'      => 'handle_tool_call',
 			'description' => 'Manage the current user\'s Extra Chill profile. Can get profile details, update bio/title/city, or replace profile links. Profile links are different from artist link pages — these are the links shown on the user\'s community profile.',
 			'parameters'  => array(
-				'action'       => array(
-					'type'        => 'string',
-					'required'    => true,
-					'description' => 'Action: "get" (view profile), "update" (update bio, title, or city), "update_links" (replace profile links)',
+				'type'       => 'object',
+				'properties' => array(
+					'action'       => array(
+						'type'        => 'string',
+						'description' => 'Action: "get" (view profile), "update" (update bio, title, or city), "update_links" (replace profile links)',
+					),
+					'custom_title' => array(
+						'type'        => 'string',
+						'description' => 'Custom profile title (e.g. "Music Producer", "Concert Photographer"). Used in "update".',
+					),
+					'bio'          => array(
+						'type'        => 'string',
+						'description' => 'User bio/description. HTML is allowed. Used in "update".',
+					),
+					'local_city'   => array(
+						'type'        => 'string',
+						'description' => 'User\'s city (e.g. "Austin, TX"). Used in "update".',
+					),
+					'links'        => array(
+						'type'        => 'array',
+						'items'       => array( 'type' => 'object' ),
+						'description' => 'Array of profile links for "update_links". Each: {type_key, url, custom_label?}. Valid type_key values: website, facebook, instagram, twitter, youtube, tiktok, spotify, soundcloud, bandcamp, github, other. Full replacement — all existing links are replaced.',
+					),
 				),
-				'custom_title' => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Custom profile title (e.g. "Music Producer", "Concert Photographer"). Used in "update".',
-				),
-				'bio'          => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'User bio/description. HTML is allowed. Used in "update".',
-				),
-				'local_city'   => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'User\'s city (e.g. "Austin, TX"). Used in "update".',
-				),
-				'links'        => array(
-					'type'        => 'array',
-					'required'    => false,
-					'description' => 'Array of profile links for "update_links". Each: {type_key, url, custom_label?}. Valid type_key values: website, facebook, instagram, twitter, youtube, tiktok, spotify, soundcloud, bandcamp, github, other. Full replacement — all existing links are replaced.',
-				),
+				'required'   => array( 'action' ),
 			),
 		);
 	}

@@ -34,46 +34,42 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 			'method'      => 'handle_tool_call',
 			'description' => 'Manage artist profiles on the Extra Chill platform. Can list the current user\'s artists, get artist details, create a new artist profile, or update an existing one (name, bio, genre, city, images). If the user has only one artist, it is auto-selected.',
 			'parameters'  => array(
-				'action'           => array(
-					'type'        => 'string',
-					'required'    => true,
-					'description' => 'Action to perform: "list" (list user\'s artists), "get" (get artist details), "create" (create new artist), "update" (update existing artist)',
+				'type'       => 'object',
+				'properties' => array(
+					'action'           => array(
+						'type'        => 'string',
+						'description' => 'Action to perform: "list" (list user\'s artists), "get" (get artist details), "create" (create new artist), "update" (update existing artist)',
+					),
+					'artist_id'        => array(
+						'type'        => 'integer',
+						'description' => 'Artist profile ID. Required for "get" and "update". Omit for "list" and "create". If the user has only one artist, this is auto-resolved.',
+					),
+					'name'             => array(
+						'type'        => 'string',
+						'description' => 'Artist/band name. Required for "create", optional for "update".',
+					),
+					'bio'              => array(
+						'type'        => 'string',
+						'description' => 'Artist bio/description. HTML is allowed. Used in "create" and "update".',
+					),
+					'genre'            => array(
+						'type'        => 'string',
+						'description' => 'Music genre (e.g. "Indie Rock", "Hip Hop"). Used in "create" and "update".',
+					),
+					'local_city'       => array(
+						'type'        => 'string',
+						'description' => 'City/scene the artist is based in (e.g. "Austin, TX"). Used in "create" and "update".',
+					),
+					'profile_image_id' => array(
+						'type'        => 'integer',
+						'description' => 'Attachment ID for profile image. Pass 0 to remove. Used in "update".',
+					),
+					'header_image_id'  => array(
+						'type'        => 'integer',
+						'description' => 'Attachment ID for header image. Pass 0 to remove. Used in "update".',
+					),
 				),
-				'artist_id'        => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Artist profile ID. Required for "get" and "update". Omit for "list" and "create". If the user has only one artist, this is auto-resolved.',
-				),
-				'name'             => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Artist/band name. Required for "create", optional for "update".',
-				),
-				'bio'              => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Artist bio/description. HTML is allowed. Used in "create" and "update".',
-				),
-				'genre'            => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'Music genre (e.g. "Indie Rock", "Hip Hop"). Used in "create" and "update".',
-				),
-				'local_city'       => array(
-					'type'        => 'string',
-					'required'    => false,
-					'description' => 'City/scene the artist is based in (e.g. "Austin, TX"). Used in "create" and "update".',
-				),
-				'profile_image_id' => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Attachment ID for profile image. Pass 0 to remove. Used in "update".',
-				),
-				'header_image_id'  => array(
-					'type'        => 'integer',
-					'required'    => false,
-					'description' => 'Attachment ID for header image. Pass 0 to remove. Used in "update".',
-				),
+				'required'   => array( 'action' ),
 			),
 		);
 	}
