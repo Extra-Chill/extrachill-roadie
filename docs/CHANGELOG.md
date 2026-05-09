@@ -2,6 +2,13 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.5.1] - 2026-05-09
+
+### Fixed
+- canonical JSON Schema for chat tools (#5)
+- convert roadie tools to canonical JSON Schema for DM 0.106.1
+- declare data-machine as required plugin
+
 ## [0.5.0] - 2026-04-07
 
 ### Added
