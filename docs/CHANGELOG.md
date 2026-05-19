@@ -2,6 +2,12 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.5.2] - 2026-05-19
+
+### Fixed
+- satisfy Roadie lint rules
+- brand Roadie frontend chat
+
 ## [0.5.1] - 2026-05-09
 
 ### Fixed
