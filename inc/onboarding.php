@@ -47,7 +47,7 @@ function extrachill_roadie_bridge_onboarding_config( array $config, string $agen
 
 	$config['welcome_message'] = "Hey! I'm Roadie, your assistant on Extra Chill. "
 		. "I can help you manage your artist profile, update your link page, post in the community forums, and more.\n\n"
-		. "What would you like to do?";
+		. 'What would you like to do?';
 
 	$config['login_label'] = 'Sign in to Extra Chill';
 
@@ -60,10 +60,10 @@ function extrachill_roadie_bridge_onboarding_config( array $config, string $agen
 
 	// Capabilities the user can use through chat.
 	$config['capabilities'] = array(
-		'artist_profile'  => 'Create and manage your artist profile',
-		'link_page'       => 'Update your link-in-bio page',
-		'user_profile'    => 'Edit your community profile',
-		'community'       => 'Browse forums, post topics, and reply',
+		'artist_profile' => 'Create and manage your artist profile',
+		'link_page'      => 'Update your link-in-bio page',
+		'user_profile'   => 'Edit your community profile',
+		'community'      => 'Browse forums, post topics, and reply',
 	);
 
 	// Avatar: use the Roadie agent's avatar if available via DM, otherwise fall back to site icon.

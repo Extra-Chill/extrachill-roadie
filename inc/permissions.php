@@ -69,6 +69,8 @@ function extrachill_roadie_allowed_redirect_uris(): array {
  * @return bool
  */
 function extrachill_roadie_team_access_bridge( bool $can_access, int $agent_id, int $user_id, string $minimum_role ): bool {
+	unset( $minimum_role );
+
 	// If already granted, no need to check further.
 	if ( $can_access ) {
 		return true;
@@ -101,7 +103,7 @@ add_filter( 'datamachine_can_access_agent', 'extrachill_roadie_team_access_bridg
 function extrachill_roadie_get_agent_id(): int {
 	static $agent_id = null;
 
-	if ( $agent_id !== null ) {
+	if ( null !== $agent_id ) {
 		return $agent_id;
 	}
 
