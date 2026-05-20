@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Extra Chill Roadie
  * Plugin URI: https://extrachill.com
- * Description: Extra Chill platform chat tools for Data Machine agents. Provides artist profiles, link pages, user profiles, and community forum tools via the datamachine_tools filter.
+ * Description: Extra Chill platform integration for Frontend Agent Chat. Provides artist profiles, link pages, user profiles, and community forum tools via the datamachine_tools filter, plus the EC theme token bridge for the chat widget.
  * Version: 0.5.2
  * Author: Chris Huber
  * Author URI: https://chubes.net

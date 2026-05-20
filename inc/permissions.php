@@ -109,7 +109,7 @@ function extrachill_roadie_get_agent_id(): int {
 
 	$agent_id = 0;
 
-	if ( ! function_exists( 'data_machine_frontend_chat_get_config' ) ) {
+	if ( ! function_exists( 'frontend_agent_chat_get_config' ) ) {
 		return $agent_id;
 	}
 
