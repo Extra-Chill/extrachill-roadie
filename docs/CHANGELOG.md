@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.6.0] - 2026-05-21
+
+### Added
+- feat(token-bridge): migrate to frontend-agent-chat 0.8.x token surface
+
 ## [0.5.2] - 2026-05-19
 
 ### Fixed
