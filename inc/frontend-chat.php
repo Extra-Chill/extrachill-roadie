@@ -23,6 +23,10 @@ function extrachill_roadie_frontend_chat_config( array $config ): array {
 
 	$config['fab_label'] = EXTRACHILL_ROADIE_AGENT_NAME;
 
+	// Suppress the generic "AI" leading-icon label; Roadie ships with no FAB icon yet.
+	// When a Roadie brand mark is ready, set this to an SVG path string instead.
+	$config['fab_icon'] = '';
+
 	return $config;
 }
 add_filter( 'frontend_agent_chat_config', 'extrachill_roadie_frontend_chat_config' );
