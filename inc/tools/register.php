@@ -36,11 +36,13 @@ add_action(
 		require_once __DIR__ . '/class-manage-user-profile.php';
 		require_once __DIR__ . '/class-manage-community.php';
 		require_once __DIR__ . '/class-propose-code-change.php';
+		require_once __DIR__ . '/class-apply-code-change.php';
 
 		new ECRoadie_ManageArtistProfile();
 		new ECRoadie_ManageLinkPage();
 		new ECRoadie_ManageUserProfile();
 		new ECRoadie_ManageCommunity();
 		new ECRoadie_ProposeCodeChange();
+		new ECRoadie_ApplyCodeChange();
 	}
 );
