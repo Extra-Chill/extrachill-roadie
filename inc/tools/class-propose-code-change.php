@@ -3,19 +3,25 @@
  * Propose Code Change Tool
  *
  * Chat tool that dispatches a WP Codebox sandbox to make a bounded code
- * change against the current subsite's stack and open a PR.
+ * change against the current subsite's stack. The sandbox produces an
+ * artifact bundle (patch.diff + review.json + preview URL). It does NOT
+ * push code or open a PR — that's the apply_code_change tool's job, gated
+ * on explicit human approval in chat.
  *
  * Flow:
- *   1. Resolve the current subsite context (theme + subsite-specific plugins).
- *   2. Build a recipe (mounts) from the slug → repo map.
- *   3. Invoke `wp-codebox/run-agent-task` with the recipe, the user's
- *      task description, `preview_hold_seconds=900`, and the env var name
- *      for `GITHUB_TOKEN`.
- *   4. Surface the artifact bundle metadata + preview URL back to chat.
+ *   1. Capability check (extrachill_propose_code).
+ *   2. Detect subsite context.
+ *   3. Build recipe (mounts from /var/lib/datamachine/workspace/<repo>).
+ *   4. Invoke wp-codebox/run-agent-task with:
+ *       - the recipe mounts
+ *       - inherit.connectors=['openai'] (resolves provider/model/secret_env
+ *         via our wp_codebox_resolve_inheritance filter)
+ *       - preview_hold_seconds=900
+ *   5. Return artifact_id + preview_url + summary + changed_files to chat
+ *      so the user can review and explicitly approve.
  *
- * Per the WP Codebox `secret_env` contract, only the env var NAME is passed
- * in the ability input. The actual token value must be in the parent PHP
- * process environment (typically set via `wp-config.php` `putenv()`).
+ * No GitHub token, no git operations, no PR. That all lives in
+ * apply_code_change.
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.7.0
@@ -49,7 +55,7 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 		return array(
 			'class'       => self::class,
 			'method'      => 'handle_tool_call',
-			'description' => 'When the user describes a code change they want made to this site (a typo fix, copy change, a small feature, etc.), use this tool to dispatch a sandboxed coding agent that implements the change in an isolated WordPress Playground, captures an artifact bundle, and opens a pull request on GitHub for human review. The user does not need shell access or git knowledge. Only call this when the user explicitly asks for a code change. The PR URL surfaces in the response.',
+			'description' => 'When the user describes a code change they want made to this site (a typo fix, copy change, a small feature, etc.), use this tool to dispatch a sandboxed coding agent that implements the change in an isolated WordPress Playground. The sandbox produces a reviewable patch artifact and a live preview URL — it does NOT push code or open a pull request. After this tool returns, surface the preview URL and summary to the user and ask them to approve. When the user approves, call apply_code_change with the returned artifact_id to commit the change and open a PR.',
 			'parameters'  => array(
 				'type'       => 'object',
 				'required'   => array( 'task_description' ),
@@ -105,48 +111,38 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 			);
 		}
 
-		// 3. Verify the platform bot token env var is set in the parent process.
-		if ( ! extrachill_roadie_github_token_is_present() ) {
-			$env_name    = extrachill_roadie_github_token_env_name();
-			$option_name = extrachill_roadie_github_token_option_name();
-			return $this->buildDiagnosticErrorResponse(
-				sprintf(
-					'GitHub token is not configured. The env var "%s" must be set in the WordPress PHP process environment (typically via `putenv()` in `wp-config.php` or a `.env` file). The env var name itself can be overridden via the network option "%s" or the `extrachill_roadie_github_token_env_name` filter.',
-					$env_name,
-					$option_name
-				),
-				'configuration',
-				$this->tool_slug,
-				array(),
-				array(
-					'action'    => 'Configure GitHub token',
-					'message'   => sprintf( 'Set %s in wp-config.php with putenv(). See docs/contribute-code.md for the setup walkthrough.', $env_name ),
-					'tool_hint' => $this->tool_slug,
-				)
-			);
-		}
-
-		// 4. Detect subsite context + build recipe.
+		// 3. Detect subsite context + build recipe.
 		$context = extrachill_roadie_detect_subsite_context();
 		$recipe  = extrachill_roadie_build_recipe( $context, extrachill_roadie_default_repo_map() );
 
 		if ( empty( $recipe['mounts'] ) ) {
+			$missing = $recipe['missing_clones'] ?? array();
+			$detail  = '';
+			if ( ! empty( $missing ) ) {
+				$detail = ' Missing workspace clones for: ' . implode( ', ', $missing ) . '. Run `wp datamachine-code workspace clone <repo>` for each.';
+			}
 			return $this->buildErrorResponse(
-				'No editable mounts could be built for this subsite. Check the slug-to-repo map (`extrachill_roadie_repo_map` filter) covers this site\'s theme and plugins.',
+				'No editable mounts could be built for this subsite.' . $detail . ' Check the slug-to-repo map (`extrachill_roadie_repo_map` filter) covers this site\'s theme and plugins.',
 				$this->tool_slug
 			);
 		}
 
-		// 5. Build the goal text the sandboxed agent sees. Include subsite
-		// context so the agent knows which subsite triggered the change.
+		// 4. Build the sandbox goal.
 		$goal = $this->build_sandbox_goal( $task_description, $context, $recipe );
 
-		// 6. Invoke the ability.
+		// 5. Invoke the ability.
 		$preview_hold = (int) apply_filters( 'extrachill_roadie_preview_hold_seconds', 900 );
-		$input        = array(
+		$connectors   = (array) apply_filters( 'extrachill_roadie_inherit_connector_names', array( 'openai' ) );
+
+		$input = array(
 			'goal'                 => $goal,
 			'mounts'               => $recipe['mounts'],
-			'secret_env'           => array( extrachill_roadie_github_token_env_name() ),
+			'inherit'              => array(
+				// Connector names resolved by our wp_codebox_resolve_inheritance
+				// filter. The filter populates provider/model/secretEnv and
+				// putenvs credential values on the host PHP process.
+				'connectors' => array_values( array_filter( array_map( 'strval', $connectors ) ) ),
+			),
 			'preview_hold_seconds' => max( 0, min( 3600, $preview_hold ) ),
 			'expected_artifacts'   => array( 'patch', 'review', 'preview' ),
 			'context'              => array(
@@ -198,8 +194,10 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 	/**
 	 * Compose the sandbox goal string.
 	 *
-	 * Prepends a short framing so the sandboxed agent knows which subsite
-	 * the change originated from and which mounts are editable.
+	 * The sandbox agent has no other context than what we put here, so be
+	 * explicit about: which subsite triggered the change, which mounts are
+	 * editable, the user's task, and the hard constraints (don't push, don't
+	 * touch CHANGELOG/versions, conventional commits).
 	 *
 	 * @param string $task_description User's natural-language request.
 	 * @param array  $context          Subsite context.
@@ -219,16 +217,11 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 			$lines[] = 'Editable components mounted readwrite: ' . implode( ', ', $editable ) . '.';
 		}
 
-		$agent_stack = array_keys( (array) ( $recipe['agent_stack_targets'] ?? array() ) );
-		if ( ! empty( $agent_stack ) ) {
-			$lines[] = 'Agent stack mounted readonly (reference only, do not edit): ' . implode( ', ', $agent_stack ) . '.';
-		}
-
 		$lines[] = '';
 		$lines[] = 'Task from the proposer:';
 		$lines[] = $task_description;
 		$lines[] = '';
-		$lines[] = 'When the change is implemented, commit with conventional-commit style messages, push the branch, and open a pull request against the appropriate repo (use the `metadata.repo` of the mount you edited). Never edit readonly mounts. Never hand-bump version strings or CHANGELOG.md (homeboy owns both).';
+		$lines[] = 'Implement the change against the editable mounts only. Do not push code, do not open a pull request — those happen on the host after a human approves your patch. Never edit CHANGELOG.md, never hand-bump version strings (homeboy owns both). Use conventional commit message styling in any commit messages you author (fix:, feat:, refactor:, etc.) even though the actual commit will be made by the apply-back tool.';
 
 		return implode( "\n", $lines );
 	}
@@ -236,9 +229,10 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 	/**
 	 * Shape the wp-codebox response into a chat-friendly payload.
 	 *
-	 * Picks summary, changed files, preview URL, and PR URL out of the
-	 * artifact bundle metadata. Whatever the sandbox put in `run` or
-	 * `artifacts` is surfaced verbatim under `raw` for debugging.
+	 * Returns artifact_id, preview_url, summary, changed_files, and the list
+	 * of mounts that actually had changes — enough for chat to render a
+	 * "ready for review" message with an explicit approve step that hands
+	 * artifact_id to apply_code_change.
 	 *
 	 * @param array $result  Ability result.
 	 * @param array $context Subsite context.
@@ -248,30 +242,50 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 	protected function shape_chat_response( array $result, array $context, array $recipe ): array {
 		$run         = (array) ( $result['run'] ?? array() );
 		$artifacts   = $result['artifacts'] ?? '';
-		$paths       = (array) ( $result['paths'] ?? array() );
 
-		// Try a few well-known keys the sandbox might publish.
-		$preview_url = (string) ( $run['preview_url'] ?? $run['preview']['url'] ?? '' );
-		$pr_url      = (string) ( $run['pr_url'] ?? $run['pull_request']['url'] ?? '' );
-		$summary     = (string) ( $run['summary'] ?? $run['review']['summary'] ?? '' );
-		$changed     = (array) ( $run['changed_files'] ?? $run['review']['changed_files'] ?? array() );
+		// wp-codebox publishes preview URL under run.artifacts.preview.url
+		// per its README; we also accept a few fallback shapes.
+		$preview_url = (string) (
+			$run['artifacts']['preview']['url']
+				?? $run['preview']['url']
+				?? $run['preview_url']
+				?? ''
+		);
+
+		$artifact_id = (string) (
+			$run['artifact']['id']
+				?? $run['artifact_id']
+				?? $run['manifest']['id']
+				?? ''
+		);
+
+		$review      = (array) ( $run['artifact']['review'] ?? $run['review'] ?? array() );
+		$summary     = (string) ( $review['summary'] ?? $run['summary'] ?? '' );
+		$changed     = (array) ( $review['changed_files']
+			?? $run['changed_files']
+			?? $run['artifact']['changed_files']
+			?? array() );
 
 		return array(
-			'summary'       => $summary,
-			'preview_url'   => $preview_url,
-			'pr_url'        => $pr_url,
-			'changed_files' => $changed,
-			'artifact'      => array(
-				'id'             => (string) ( $run['artifact_id'] ?? '' ),
-				'artifacts_path' => is_string( $artifacts ) ? $artifacts : '',
-				'paths'          => $paths,
-			),
-			'subsite'       => array(
+			'status'           => 'pending-approval',
+			'artifact_id'      => $artifact_id,
+			'preview_url'      => $preview_url,
+			'summary'          => $summary,
+			'changed_files'    => $changed,
+			'subsite'          => array(
 				'blog_id'  => (int) ( $context['blog_id'] ?? 0 ),
 				'site_url' => (string) ( $context['site_url'] ?? '' ),
 			),
 			'editable_targets' => $recipe['editable_targets'],
-			'raw'           => $result,
+			'next_step'        => sprintf(
+				'Review the changes at the preview URL. If they look good, call apply_code_change with artifact_id="%s" to commit and open a pull request. To discard, call wp-codebox/discard-artifact.',
+				$artifact_id
+			),
+			'artifact'         => array(
+				'id'             => $artifact_id,
+				'artifacts_path' => is_string( $artifacts ) ? $artifacts : '',
+			),
+			'raw'              => $result,
 		);
 	}
 }
