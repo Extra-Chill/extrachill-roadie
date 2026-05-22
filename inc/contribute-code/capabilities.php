@@ -1,11 +1,15 @@
 <?php
 /**
- * Capability mapping for the contribute-code chat tool.
+ * Capability mapping for the contribute-code chat tools.
  *
  * Adds `extrachill_propose_code` and grants it to administrators and editors
  * by default. Override the role grant via the
  * `extrachill_roadie_propose_code_roles` filter; override per-user via the
  * `user_has_cap` filter as usual.
+ *
+ * Both `propose_code_change` and `apply_code_change` gate on this cap. There
+ * is no separate "approve" cap because chat approval already happens through
+ * the same conversation surface — if you can propose, you can approve.
  *
  * @package ExtraChillRoadie\ContributeCode
  * @since 0.7.0
@@ -81,63 +85,37 @@ function extrachill_roadie_grant_propose_code_cap( array $allcaps, array $caps, 
 add_filter( 'user_has_cap', 'extrachill_roadie_grant_propose_code_cap', 10, 4 );
 
 /**
- * Resolve the network option name that holds the platform bot GitHub token name.
+ * Env var name holding the GitHub token used by the apply-back tool.
  *
- * The option stores ONLY the env var NAME (e.g. "GITHUB_TOKEN"). The actual
- * token value lives in the WordPress PHP process environment — typically in
- * `wp-config.php` (`putenv()`) or `.env` — because that is what the WP
- * Codebox `secret_env` contract requires.
+ * Apply-back shells out to `gh pr create` (and underlying `git push`) on the
+ * host. Both pick up `GITHUB_TOKEN` from the process environment. The token
+ * never crosses into the sandbox — sandboxes don't push.
+ *
+ * Override the env var name via the `extrachill_roadie_apply_github_token_env`
+ * filter if your host exports the token under a different name.
  *
  * @since 0.7.0
  * @return string
  */
-function extrachill_roadie_github_token_option_name(): string {
-	return 'extrachill_roadie_github_token_env';
-}
-
-/**
- * Resolve the configured GitHub token env var name.
- *
- * Defaults to `GITHUB_TOKEN` when the network option is unset. The actual
- * value is read from `getenv()` by WP Codebox at sandbox-dispatch time.
- *
- * @since 0.7.0
- * @return string Env var name (never empty).
- */
-function extrachill_roadie_github_token_env_name(): string {
-	$option = extrachill_roadie_github_token_option_name();
-	$name   = '';
-	if ( function_exists( 'get_site_option' ) ) {
-		$name = (string) get_site_option( $option, '' );
-	}
-	if ( '' === $name && function_exists( 'get_option' ) ) {
-		$name = (string) get_option( $option, '' );
-	}
-	if ( '' === $name ) {
-		$name = 'GITHUB_TOKEN';
-	}
-
+function extrachill_roadie_apply_github_token_env_name(): string {
 	/**
-	 * Filter the env var name that holds the platform bot GitHub token.
+	 * Filter the env var name holding the GitHub token for apply-back.
 	 *
 	 * @since 0.7.0
 	 *
-	 * @param string $name Env var name.
+	 * @param string $default Default env var name.
 	 */
-	return (string) apply_filters( 'extrachill_roadie_github_token_env_name', $name );
+	return (string) apply_filters( 'extrachill_roadie_apply_github_token_env', 'GITHUB_TOKEN' );
 }
 
 /**
- * Check whether the env var named by extrachill_roadie_github_token_env_name()
- * has a non-empty value in the parent process environment.
- *
- * Used by the chat tool to fail fast with a clear error message.
+ * Check whether the apply-back GitHub token env var is present and non-empty.
  *
  * @since 0.7.0
  * @return bool
  */
-function extrachill_roadie_github_token_is_present(): bool {
-	$name = extrachill_roadie_github_token_env_name();
+function extrachill_roadie_apply_github_token_present(): bool {
+	$name = extrachill_roadie_apply_github_token_env_name();
 	if ( '' === $name ) {
 		return false;
 	}

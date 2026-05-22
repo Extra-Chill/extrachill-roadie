@@ -169,3 +169,4 @@ require_once dirname( __DIR__ ) . '/inc/contribute-code/subsite-context.php';
 require_once dirname( __DIR__ ) . '/inc/contribute-code/repo-map.php';
 require_once dirname( __DIR__ ) . '/inc/contribute-code/recipe-builder.php';
 require_once dirname( __DIR__ ) . '/inc/contribute-code/capabilities.php';
+require_once dirname( __DIR__ ) . '/inc/contribute-code/inherit-resolver.php';

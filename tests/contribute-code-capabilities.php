@@ -1,6 +1,6 @@
 <?php
 /**
- * Smoke tests for the contribute-code capability + token resolution.
+ * Smoke tests for the contribute-code capability + apply-tool github token helpers.
  *
  * Run with: php tests/contribute-code-capabilities.php
  *
@@ -53,41 +53,34 @@ roadie_test_assert(
 	'author should receive the cap after filter override'
 );
 
-// --- env var name resolution --------------------------------------------
+// --- apply-tool GitHub token helpers (host-only, never crosses to sandbox) -
 roadie_test_reset_filters();
 roadie_test_assert(
-	'GITHUB_TOKEN' === extrachill_roadie_github_token_env_name(),
-	'default env var name should be GITHUB_TOKEN'
+	'GITHUB_TOKEN' === extrachill_roadie_apply_github_token_env_name(),
+	'default apply-back env var should be GITHUB_TOKEN'
 );
 
-$GLOBALS['extrachill_roadie_test_state']['site_options']['extrachill_roadie_github_token_env'] = 'EC_BOT_TOKEN';
+putenv( 'GITHUB_TOKEN=' );
 roadie_test_assert(
-	'EC_BOT_TOKEN' === extrachill_roadie_github_token_env_name(),
-	'network option override should resolve via get_site_option'
+	! extrachill_roadie_apply_github_token_present(),
+	'empty GITHUB_TOKEN must not count as present'
 );
 
-// --- presence check -----------------------------------------------------
-putenv( 'EC_BOT_TOKEN=' ); // empty
+putenv( 'GITHUB_TOKEN=ghp_real_token_value' );
 roadie_test_assert(
-	! extrachill_roadie_github_token_is_present(),
-	'empty env var must not count as present'
-);
-
-putenv( 'EC_BOT_TOKEN=ghp_realtoken_value' );
-roadie_test_assert(
-	extrachill_roadie_github_token_is_present(),
-	'non-empty env var must count as present'
+	extrachill_roadie_apply_github_token_present(),
+	'non-empty GITHUB_TOKEN must count as present'
 );
 
 // --- filter override of env var name ------------------------------------
-add_filter( 'extrachill_roadie_github_token_env_name', fn() => 'CUSTOM_GH_TOKEN' );
-putenv( 'CUSTOM_GH_TOKEN=hello' );
+add_filter( 'extrachill_roadie_apply_github_token_env', fn() => 'EC_BOT_GH_TOKEN' );
+putenv( 'EC_BOT_GH_TOKEN=hello' );
 roadie_test_assert(
-	'CUSTOM_GH_TOKEN' === extrachill_roadie_github_token_env_name(),
-	'filter override on env var name'
+	'EC_BOT_GH_TOKEN' === extrachill_roadie_apply_github_token_env_name(),
+	'filter override on apply-back env var name'
 );
 roadie_test_assert(
-	extrachill_roadie_github_token_is_present(),
+	extrachill_roadie_apply_github_token_present(),
 	'filter-overridden env var should be detected'
 );
 

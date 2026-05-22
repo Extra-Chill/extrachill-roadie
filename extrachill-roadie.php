@@ -35,6 +35,7 @@ require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/subsite-context
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/repo-map.php';
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/recipe-builder.php';
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/capabilities.php';
+require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/inherit-resolver.php';
 
 /**
  * Bootstrap Roadie policy hooks.

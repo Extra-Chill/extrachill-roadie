@@ -2,14 +2,26 @@
 /**
  * Recipe builder for the sandbox-backed contribute-code flow.
  *
- * Translates a detected subsite context (active theme + subsite-specific
- * plugins) plus the slug→repo map into the `mounts` array accepted by
+ * Translates a detected subsite context into the `mounts` array accepted by
  * `wp-codebox/run-agent-task`.
  *
- * Per chubes4/wp-codebox#82 the recipe builder lives in the consumer (us),
- * not in wp-codebox. Each mount declares source/target/mode and carries
- * `metadata` for downstream tools that need to push back to the correct
- * GitHub repo.
+ * Key design choices:
+ *
+ * - Mount sources point at `/var/lib/datamachine/workspace/<repo>` (the DMC
+ *   primary clone), NOT at `/var/www/.../wp-content/plugins/<slug>`. The
+ *   production install is read-only reference; all sandbox-edited code is
+ *   sourced from workspace clones so the apply-back path has a real git
+ *   tree to commit against.
+ *
+ * - `metadata.baselineSource` is set on every readwrite mount so
+ *   wp-codebox's `captureMountDiffs()` emits a real `patch.diff` artifact.
+ *
+ * - The agent stack (agents-api, data-machine, data-machine-code, AI
+ *   providers) is NOT included here. WP Codebox already auto-mounts it via
+ *   the `wp_codebox_component_paths` network option / `extraPlugins` recipe
+ *   branch. Including them here would double-mount.
+ *
+ * Per chubes4/wp-codebox#82 the recipe builder lives in the consumer (us).
  *
  * @package ExtraChillRoadie\ContributeCode
  * @since 0.7.0
@@ -28,6 +40,47 @@ if ( ! defined( 'ABSPATH' ) ) {
 const EXTRACHILL_ROADIE_SANDBOX_WP_CONTENT = '/wordpress/wp-content';
 
 /**
+ * Default DMC workspace root on disk.
+ *
+ * Override via the `extrachill_roadie_workspace_root` filter.
+ *
+ * @since 0.7.0
+ * @return string
+ */
+function extrachill_roadie_workspace_root(): string {
+	$default = '/var/lib/datamachine/workspace';
+
+	/**
+	 * Filter the DMC workspace root used for mount sources.
+	 *
+	 * @since 0.7.0
+	 *
+	 * @param string $default Default root path.
+	 */
+	return (string) apply_filters( 'extrachill_roadie_workspace_root', $default );
+}
+
+/**
+ * Resolve the on-disk workspace clone path for a repo slug.
+ *
+ * Convention: DMC clones each repo to `<workspace_root>/<repo>`. We use the
+ * primary clone (no `@<branch>` suffix) as the mount source. Apply-back
+ * tooling creates per-task worktrees from the artifact patch separately.
+ *
+ * @since 0.7.0
+ *
+ * @param string $slug Component slug.
+ * @return string Absolute path; not guaranteed to exist.
+ */
+function extrachill_roadie_workspace_clone_path( string $slug ): string {
+	$slug = trim( $slug );
+	if ( '' === $slug ) {
+		return '';
+	}
+	return extrachill_roadie_workspace_root() . '/' . $slug;
+}
+
+/**
  * Build a recipe (the `mounts` array) for `wp-codebox/run-agent-task`.
  *
  * Input:
@@ -35,17 +88,17 @@ const EXTRACHILL_ROADIE_SANDBOX_WP_CONTENT = '/wordpress/wp-content';
  *   - $repo_map — output of extrachill_roadie_default_repo_map() (or override)
  *   - $args     — optional overrides:
  *       * 'wp_content_target' (string) sandbox WP content root
- *       * 'include_agent_stack' (bool)  default true
- *       * 'agent_stack_plugin_paths' (array<slug,path>) host paths for the
- *         agent stack — pulled from /var/www/extrachill.com/wp-content/plugins/
- *         when omitted
+ *       * 'workspace_root'    (string) override workspace root for this call
+ *       * 'require_clone'     (bool)   if true (default), skip mounts whose
+ *                                      workspace clone doesn't exist on disk
+ *                                      and track them in `missing_clones`
  *
  * Output:
  *   array(
  *     'mounts'                  => array<int, array{source,target,mode,metadata}>,
- *     'editable_targets'        => array<string,string>, // slug => sandbox target
- *     'agent_stack_targets'     => array<string,string>, // slug => sandbox target
- *     'unmapped_active_plugins' => string[],             // slugs without repo entries
+ *     'editable_targets'        => array<string,string>,  // slug => sandbox target
+ *     'unmapped_active_plugins' => string[],              // slugs without repo entries
+ *     'missing_clones'          => string[],              // slugs whose clone is absent
  *   )
  *
  * @since 0.7.0
@@ -56,45 +109,60 @@ const EXTRACHILL_ROADIE_SANDBOX_WP_CONTENT = '/wordpress/wp-content';
  * @return array<string,mixed>
  */
 function extrachill_roadie_build_recipe( array $context, array $repo_map, array $args = array() ): array {
-	$wp_content_target   = (string) ( $args['wp_content_target'] ?? EXTRACHILL_ROADIE_SANDBOX_WP_CONTENT );
-	$include_agent_stack = (bool) ( $args['include_agent_stack'] ?? true );
-	$agent_stack_paths   = (array) ( $args['agent_stack_plugin_paths'] ?? array() );
+	$wp_content_target = (string) ( $args['wp_content_target'] ?? EXTRACHILL_ROADIE_SANDBOX_WP_CONTENT );
+	$workspace_root    = (string) ( $args['workspace_root'] ?? extrachill_roadie_workspace_root() );
+	$require_clone     = (bool) ( $args['require_clone'] ?? true );
 
-	$mounts              = array();
-	$editable_targets    = array();
-	$agent_stack_targets = array();
-	$unmapped            = array();
+	$mounts           = array();
+	$editable_targets = array();
+	$unmapped         = array();
+	$missing_clones   = array();
 
-	// 1. Theme mount (readwrite if it has a repo entry, otherwise skip).
+	$build_mount = static function ( string $kind, string $slug, array $entry, string $sandbox_target ) use ( $workspace_root, $require_clone, &$missing_clones ): ?array {
+		$source = $workspace_root . '/' . $slug;
+		if ( $require_clone && ! is_dir( $source ) ) {
+			$missing_clones[] = $slug;
+			return null;
+		}
+
+		return array(
+			'source'   => $source,
+			'target'   => $sandbox_target,
+			'mode'     => 'readwrite',
+			'metadata' => array(
+				'kind'                        => $kind,
+				'slug'                        => $slug,
+				'repo'                        => (string) ( $entry['repo'] ?? '' ),
+				'default_branch'              => (string) ( $entry['default_branch'] ?? 'main' ),
+				'repo_root_relative_to_mount' => (string) ( $entry['repo_root_relative_to_mount'] ?? '' ),
+				// captureMountDiffs() in wp-codebox only emits a patch when
+				// metadata.baselineSource is set on a readwrite mount.
+				'baselineSource'              => $source,
+				'editable'                    => true,
+			),
+		);
+	};
+
+	// 1. Theme mount (readwrite if mapped + clone exists).
 	$theme_slug = (string) ( $context['theme']['slug'] ?? '' );
-	$theme_path = (string) ( $context['theme']['path'] ?? '' );
-	if ( '' !== $theme_slug && '' !== $theme_path ) {
+	if ( '' !== $theme_slug ) {
 		$entry = $repo_map[ $theme_slug ] ?? null;
 		if ( $entry && ( $entry['kind'] ?? '' ) === 'theme' ) {
-			$target          = $wp_content_target . '/themes/' . $theme_slug;
-			$mounts[]        = array(
-				'source'   => $theme_path,
-				'target'   => $target,
-				'mode'     => 'readwrite',
-				'metadata' => array(
-					'kind'                          => 'theme',
-					'slug'                          => $theme_slug,
-					'repo'                          => (string) ( $entry['repo'] ?? '' ),
-					'default_branch'                => (string) ( $entry['default_branch'] ?? 'main' ),
-					'repo_root_relative_to_mount'   => (string) ( $entry['repo_root_relative_to_mount'] ?? '' ),
-				),
-			);
-			$editable_targets[ $theme_slug ] = $target;
+			$target = $wp_content_target . '/themes/' . $theme_slug;
+			$mount  = $build_mount( 'theme', $theme_slug, $entry, $target );
+			if ( $mount ) {
+				$mounts[]                       = $mount;
+				$editable_targets[ $theme_slug ] = $target;
+			}
 		} else {
 			$unmapped[] = $theme_slug;
 		}
 	}
 
-	// 2. Subsite-specific plugin mounts (readwrite when mapped).
+	// 2. Subsite-specific plugin mounts (readwrite when mapped + clone exists).
 	foreach ( (array) ( $context['plugins'] ?? array() ) as $plugin ) {
 		$slug = (string) ( $plugin['slug'] ?? '' );
-		$path = (string) ( $plugin['path'] ?? '' );
-		if ( '' === $slug || '' === $path ) {
+		if ( '' === $slug ) {
 			continue;
 		}
 
@@ -105,62 +173,25 @@ function extrachill_roadie_build_recipe( array $context, array $repo_map, array 
 		}
 
 		$kind = (string) ( $entry['kind'] ?? 'plugin' );
+		// Agent-stack plugins are auto-mounted by wp-codebox via component
+		// paths — never include them in our recipe.
 		if ( 'agent-stack-plugin' === $kind ) {
-			// Active on the subsite AND classified as agent stack — treat as
-			// the agent stack branch below to keep it read-only.
 			continue;
 		}
 
 		$target = $wp_content_target . '/plugins/' . $slug;
-		$mounts[] = array(
-			'source'   => $path,
-			'target'   => $target,
-			'mode'     => 'readwrite',
-			'metadata' => array(
-				'kind'                          => $kind,
-				'slug'                          => $slug,
-				'repo'                          => (string) ( $entry['repo'] ?? '' ),
-				'default_branch'                => (string) ( $entry['default_branch'] ?? 'main' ),
-				'repo_root_relative_to_mount'   => (string) ( $entry['repo_root_relative_to_mount'] ?? '' ),
-			),
-		);
-		$editable_targets[ $slug ] = $target;
-	}
-
-	// 3. Agent stack — read-only references. Sandboxed agent needs these to
-	// grep DM core, DMC, AI providers, agents-api when implementing changes.
-	if ( $include_agent_stack ) {
-		$plugin_dir = defined( 'WP_PLUGIN_DIR' ) ? WP_PLUGIN_DIR : ABSPATH . 'wp-content/plugins';
-		foreach ( extrachill_roadie_agent_stack_slugs() as $slug ) {
-			$entry = $repo_map[ $slug ] ?? null;
-			if ( ! $entry ) {
-				continue;
-			}
-
-			$host_path = $agent_stack_paths[ $slug ] ?? ( $plugin_dir . '/' . $slug );
-			$target    = $wp_content_target . '/plugins/' . $slug;
-
-			$mounts[] = array(
-				'source'   => $host_path,
-				'target'   => $target,
-				'mode'     => 'readonly',
-				'metadata' => array(
-					'kind'                          => 'agent-stack-plugin',
-					'slug'                          => $slug,
-					'repo'                          => (string) ( $entry['repo'] ?? '' ),
-					'default_branch'                => (string) ( $entry['default_branch'] ?? 'main' ),
-					'repo_root_relative_to_mount'   => (string) ( $entry['repo_root_relative_to_mount'] ?? '' ),
-				),
-			);
-			$agent_stack_targets[ $slug ] = $target;
+		$mount  = $build_mount( $kind, $slug, $entry, $target );
+		if ( $mount ) {
+			$mounts[]                  = $mount;
+			$editable_targets[ $slug ] = $target;
 		}
 	}
 
 	$recipe = array(
 		'mounts'                  => $mounts,
 		'editable_targets'        => $editable_targets,
-		'agent_stack_targets'     => $agent_stack_targets,
 		'unmapped_active_plugins' => array_values( array_unique( $unmapped ) ),
+		'missing_clones'          => array_values( array_unique( $missing_clones ) ),
 	);
 
 	/**
