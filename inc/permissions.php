@@ -56,9 +56,18 @@ function extrachill_roadie_allowed_redirect_uris(): array {
 /**
  * Grant team members access to the roadie agent.
  *
- * Hooks `datamachine_can_access_agent` to check EC team membership
- * when the agent in question is the roadie agent. This bridges
- * EC's custom team meta to DM's permission system.
+ * Hooks `datamachine_can_access_agent` (a generic Data Machine
+ * filter) and elevates EC team members to roadie-agent access. This
+ * is the platform-specific policy layer: Data Machine knows nothing
+ * about Extra Chill team membership; extrachill-roadie is the
+ * one-and-only place where EC-specific knowledge meets DM's generic
+ * permission surface.
+ *
+ * Team membership is sourced from the `access_studio` capability —
+ * granted by the `extra_chill_team` role (extrachill-users#45) on
+ * every site in the network. We use `user_can()` directly rather
+ * than `ec_is_team_member()` so this function stays a thin policy
+ * shim that can be reasoned about by reading just this file.
  *
  * @since 0.3.0
  *
@@ -82,14 +91,51 @@ function extrachill_roadie_team_access_bridge( bool $can_access, int $agent_id, 
 		return $can_access;
 	}
 
-	// Use the existing Extra Chill team access bridge as the source of truth.
-	if ( function_exists( 'ec_is_team_member' ) && ec_is_team_member( $user_id ) ) {
+	// phpcs:ignore WordPress.WP.Capabilities.Unknown -- Custom cap granted by the extra_chill_team role (extrachill-users#45).
+	if ( user_can( $user_id, 'access_roadie' ) ) {
 		return true;
 	}
 
 	return $can_access;
 }
 add_filter( 'datamachine_can_access_agent', 'extrachill_roadie_team_access_bridge', 10, 4 );
+
+/**
+ * Map Data Machine Events' write capability to the EC team cap.
+ *
+ * data-machine-events defaults its write gate to `edit_others_posts`
+ * (administrators + editors only). On Extra Chill, the team role
+ * (`extra_chill_team`) is the natural trust pool for events admin
+ * because team contributors are journalists who need to fix venue
+ * data, merge duplicates, and run geocoding sweeps without being
+ * site administrators. The role grants `access_events_admin`, which
+ * we wire up as DME's write cap on every EC subsite.
+ *
+ * Pure policy bridge — DME knows nothing about EC; EC's integration
+ * layer (this plugin) overrides DME's default via its filter API.
+ *
+ * @since 0.7.0
+ * @return string
+ */
+function extrachill_roadie_events_write_capability(): string {
+	return 'access_events_admin';
+}
+add_filter( 'datamachine_events_write_capability', 'extrachill_roadie_events_write_capability' );
+
+/**
+ * Same shape for DME's diagnostic read gate.
+ *
+ * Currently the only read ability hooked through DME's filter is
+ * unused by default, but providing the bridge here keeps the
+ * mapping consistent should a read-gated ability be added later.
+ *
+ * @since 0.7.0
+ * @return string
+ */
+function extrachill_roadie_events_read_capability(): string {
+	return 'access_events_admin';
+}
+add_filter( 'datamachine_events_read_capability', 'extrachill_roadie_events_read_capability' );
 
 /**
  * Get the roadie agent ID from the frontend chat config.
