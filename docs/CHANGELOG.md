@@ -2,6 +2,14 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.7.0] - 2026-05-23
+
+### Added
+- wire events-admin cap + switch roadie bridge to cap check
+
+### Fixed
+- fix(frontend-chat): clear default 'AI' fab_icon so FAB shows 'Roadie' alone
+
 ## [0.6.0] - 2026-05-21
 
 ### Added
