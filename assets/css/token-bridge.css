@@ -23,9 +23,11 @@
 
 :root {
 	/* ── FAB chrome ─────────────────────────────────────── */
-	--frontend-agent-chat-fab-bg: var(--header-background, #1a1a2e);
-	--frontend-agent-chat-fab-color: var(--header-text-color, #fff);
-	--frontend-agent-chat-fab-border-color: var(--border-color, transparent);
+	/* Bridge to the EC brand action color (--accent) so the FAB reads as
+	 * "click me" instead of inheriting header chrome. See issue #15. */
+	--frontend-agent-chat-fab-bg: var(--accent, #53940b);
+	--frontend-agent-chat-fab-color: var(--button-text-color, #fff);
+	--frontend-agent-chat-fab-border-color: var(--accent-hover, transparent);
 	--frontend-agent-chat-fab-font-size: var(--font-size-base, 15px);
 	--frontend-agent-chat-fab-badge-bg: var(--error-color, #d63638);
 
