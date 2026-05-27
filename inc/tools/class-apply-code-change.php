@@ -19,7 +19,9 @@
  *      multiple components).
  *
  * The sandbox never runs git. All git operations live here, on the host.
- * GITHUB_TOKEN is read from the host PHP process env.
+ * GitHub credentials are minted per-repo via DataMachineCode\Support\GitHubCredentialResolver
+ * (App-mode installation tokens or PAT, per the configured credential profile)
+ * and threaded into each shell-out via per-command env, never via global putenv().
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.7.0
@@ -30,6 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use DataMachine\Engine\AI\Tools\BaseTool;
+use DataMachineCode\Support\GitHubCredentialResolver;
 
 class ECRoadie_ApplyCodeChange extends BaseTool {
 
@@ -89,10 +92,9 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 			return $this->buildErrorResponse( 'artifact_id is required.', $this->tool_slug );
 		}
 
-		if ( ! extrachill_roadie_apply_github_token_present() ) {
-			$env = extrachill_roadie_apply_github_token_env_name();
+		if ( ! $this->resolver_is_configured() ) {
 			return $this->buildErrorResponse(
-				sprintf( 'GitHub token is not configured. The env var "%s" must be set in the WordPress PHP process for apply-back to push and open PRs. Set it via putenv() in wp-config.php (or a .env loader).', $env ),
+				'GitHub credentials are not configured. Apply-back resolves a token per repo via the Data Machine credential profile system. Verify with `wp --allow-root --path=/var/www/extrachill.com datamachine-code github status`, and configure via the `datamachine/update-settings` ability with `github_credential_profiles` + `github_default_profile_id`.',
 				$this->tool_slug
 			);
 		}
@@ -290,6 +292,34 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 			);
 		}
 
+		// Resolve GitHub credentials once per repo. App-mode installation
+		// tokens are valid for ~1 hour, which comfortably covers push + PR
+		// creation. The token is threaded into shell-outs via per-command
+		// env (http.extraheader for git, GH_TOKEN= prefix for gh) — never
+		// putenv'd globally.
+		$credential = $this->resolve_github_credential( $repo );
+		if ( is_wp_error( $credential ) ) {
+			return array(
+				'success'       => false,
+				'slug'          => $slug,
+				'repo'          => $repo,
+				'branch'        => $branch,
+				'worktree_path' => $worktree_path,
+				'error'         => 'GitHub credential resolution failed: ' . $credential->get_error_message(),
+			);
+		}
+		$token = (string) ( $credential['token'] ?? '' );
+		if ( '' === $token ) {
+			return array(
+				'success'       => false,
+				'slug'          => $slug,
+				'repo'          => $repo,
+				'branch'        => $branch,
+				'worktree_path' => $worktree_path,
+				'error'         => 'GitHub credential resolver returned an empty token.',
+			);
+		}
+
 		// 1. Create a fresh worktree via DMC.
 		$worktree = $this->run_command(
 			sprintf(
@@ -375,14 +405,11 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 			);
 		}
 
-		// 5. Push.
-		$push = $this->run_command(
-			sprintf(
-				'cd %s && git push -u origin %s 2>&1',
-				escapeshellarg( $worktree_path ),
-				escapeshellarg( $branch )
-			)
-		);
+		// 5. Push. Token authorization passed via -c http.extraheader so
+		// the credential never lands in a remote URL, in a credential cache,
+		// or in any global git config. Per-command, per-invocation only.
+		$push = $this->run_command( $this->build_push_command( $worktree_path, $branch, $token ) );
+		$push['output'] = $this->redact_token( (string) $push['output'], $token );
 		if ( 0 !== $push['exit_code'] ) {
 			return array(
 				'success'       => false,
@@ -399,17 +426,12 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 		$proposer_line = $proposer_id > 0 ? sprintf( "\n\nProposed via roadie chat by user %d.", $proposer_id ) : '';
 		$pr_body       = $commit_message . $proposer_line . "\n\nArtifact id: `" . $bundle['id'] . "`";
 
+		// gh pr create reads GH_TOKEN from its own per-command env — passed
+		// inline in the command string, never via putenv() on the PHP process.
 		$pr = $this->run_command(
-			sprintf(
-				'cd %s && gh pr create --repo %s --base %s --head %s --title %s --body %s 2>&1',
-				escapeshellarg( $worktree_path ),
-				escapeshellarg( $repo ),
-				escapeshellarg( $default_branch ),
-				escapeshellarg( $branch ),
-				escapeshellarg( $commit_message ),
-				escapeshellarg( $pr_body )
-			)
+			$this->build_pr_create_command( $worktree_path, $repo, $default_branch, $branch, $commit_message, $pr_body, $token )
 		);
+		$pr['output'] = $this->redact_token( (string) $pr['output'], $token );
 		if ( 0 !== $pr['exit_code'] ) {
 			return array(
 				'success'       => false,
@@ -551,5 +573,102 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 			return $m[0];
 		}
 		return '';
+	}
+
+	/**
+	 * Test seam: ask the resolver whether GitHub auth is configured at all.
+	 *
+	 * @return bool
+	 */
+	protected function resolver_is_configured(): bool {
+		return GitHubCredentialResolver::isConfigured();
+	}
+
+	/**
+	 * Test seam: resolve a GitHub credential scoped to the given repo.
+	 *
+	 * Returns the resolver's success array shape:
+	 *   array{ mode, token, authorization, profile_id, cached?, expires_at? }
+	 * or a WP_Error on failure.
+	 *
+	 * @param string $repo `owner/repo` slug.
+	 * @return array<string,mixed>|\WP_Error
+	 */
+	protected function resolve_github_credential( string $repo ) {
+		return GitHubCredentialResolver::resolve( null, null, array( 'repo' => $repo ) );
+	}
+
+	/**
+	 * Build the `git push` shell command, threading the resolved token via
+	 * `-c http.extraheader=...` so the credential never touches global git
+	 * config, the credential cache, or the remote URL.
+	 *
+	 * Exposed as a protected method so tests can capture the constructed
+	 * command string without executing it.
+	 *
+	 * @param string $worktree_path Absolute path to the worktree on disk.
+	 * @param string $branch        Branch to push.
+	 * @param string $token         Resolved GitHub token (PAT or ghs_... installation token).
+	 * @return string
+	 */
+	protected function build_push_command( string $worktree_path, string $branch, string $token ): string {
+		return sprintf(
+			'cd %s && git -c http.extraheader="Authorization: Bearer %s" push -u origin %s 2>&1',
+			escapeshellarg( $worktree_path ),
+			escapeshellarg( $token ),
+			escapeshellarg( $branch )
+		);
+	}
+
+	/**
+	 * Build the `gh pr create` shell command with the resolved token passed
+	 * as a per-command `GH_TOKEN=` env prefix — never via putenv() on the
+	 * global PHP process.
+	 *
+	 * @param string $worktree_path
+	 * @param string $repo
+	 * @param string $default_branch
+	 * @param string $branch
+	 * @param string $title
+	 * @param string $body
+	 * @param string $token
+	 * @return string
+	 */
+	protected function build_pr_create_command(
+		string $worktree_path,
+		string $repo,
+		string $default_branch,
+		string $branch,
+		string $title,
+		string $body,
+		string $token
+	): string {
+		return sprintf(
+			'cd %s && GH_TOKEN=%s gh pr create --repo %s --base %s --head %s --title %s --body %s 2>&1',
+			escapeshellarg( $worktree_path ),
+			escapeshellarg( $token ),
+			escapeshellarg( $repo ),
+			escapeshellarg( $default_branch ),
+			escapeshellarg( $branch ),
+			escapeshellarg( $title ),
+			escapeshellarg( $body )
+		);
+	}
+
+	/**
+	 * Redact a token from arbitrary command output before it surfaces in
+	 * tool responses, logs, or artifact bundles. Belt-and-suspenders: most
+	 * git/gh commands shouldn't echo the token, but `set -x`-style traces,
+	 * 401 responses, or push URLs can leak it.
+	 *
+	 * @param string $output Raw command output.
+	 * @param string $token  Token to redact.
+	 * @return string
+	 */
+	protected function redact_token( string $output, string $token ): string {
+		if ( '' === $token ) {
+			return $output;
+		}
+		return str_replace( $token, '[REDACTED]', $output );
 	}
 }

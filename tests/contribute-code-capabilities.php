@@ -53,35 +53,22 @@ roadie_test_assert(
 	'author should receive the cap after filter override'
 );
 
-// --- apply-tool GitHub token helpers (host-only, never crosses to sandbox) -
-roadie_test_reset_filters();
+// --- Apply-back GitHub token helpers removed (issue #22) ------------------
+//
+// The previous `extrachill_roadie_apply_github_token_env_name()` and
+// `_present()` helpers (plus the `extrachill_roadie_apply_github_token_env`
+// filter) were deleted when apply-back switched to
+// DataMachineCode\Support\GitHubCredentialResolver. Both tools now resolve a
+// per-repo token via the credential profile system; nothing in the
+// extrachill-roadie surface should reach for those names anymore. Assert
+// they really are gone so future drift fails loudly here.
 roadie_test_assert(
-	'GITHUB_TOKEN' === extrachill_roadie_apply_github_token_env_name(),
-	'default apply-back env var should be GITHUB_TOKEN'
-);
-
-putenv( 'GITHUB_TOKEN=' );
-roadie_test_assert(
-	! extrachill_roadie_apply_github_token_present(),
-	'empty GITHUB_TOKEN must not count as present'
-);
-
-putenv( 'GITHUB_TOKEN=ghp_real_token_value' );
-roadie_test_assert(
-	extrachill_roadie_apply_github_token_present(),
-	'non-empty GITHUB_TOKEN must count as present'
-);
-
-// --- filter override of env var name ------------------------------------
-add_filter( 'extrachill_roadie_apply_github_token_env', fn() => 'EC_BOT_GH_TOKEN' );
-putenv( 'EC_BOT_GH_TOKEN=hello' );
-roadie_test_assert(
-	'EC_BOT_GH_TOKEN' === extrachill_roadie_apply_github_token_env_name(),
-	'filter override on apply-back env var name'
+	! function_exists( 'extrachill_roadie_apply_github_token_env_name' ),
+	'extrachill_roadie_apply_github_token_env_name() must be removed (issue #22)'
 );
 roadie_test_assert(
-	extrachill_roadie_apply_github_token_present(),
-	'filter-overridden env var should be detected'
+	! function_exists( 'extrachill_roadie_apply_github_token_present' ),
+	'extrachill_roadie_apply_github_token_present() must be removed (issue #22)'
 );
 
 echo "contribute-code capabilities smoke passed.\n";

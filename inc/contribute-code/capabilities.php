@@ -84,41 +84,14 @@ function extrachill_roadie_grant_propose_code_cap( array $allcaps, array $caps, 
 }
 add_filter( 'user_has_cap', 'extrachill_roadie_grant_propose_code_cap', 10, 4 );
 
-/**
- * Env var name holding the GitHub token used by the apply-back tool.
+/*
+ * Apply-back GitHub credentials are no longer sourced from the PHP process
+ * environment. The previous `extrachill_roadie_apply_github_token_env_name()`
+ * + `_present()` helpers (and the `extrachill_roadie_apply_github_token_env`
+ * filter) were removed when apply-back switched to
+ * `DataMachineCode\Support\GitHubCredentialResolver`. Tokens are now minted
+ * per-repo via the configured credential profile and threaded into each
+ * shell-out via per-command env. Verify configuration with:
  *
- * Apply-back shells out to `gh pr create` (and underlying `git push`) on the
- * host. Both pick up `GITHUB_TOKEN` from the process environment. The token
- * never crosses into the sandbox — sandboxes don't push.
- *
- * Override the env var name via the `extrachill_roadie_apply_github_token_env`
- * filter if your host exports the token under a different name.
- *
- * @since 0.7.0
- * @return string
+ *   wp --allow-root --path=/var/www/extrachill.com datamachine-code github status
  */
-function extrachill_roadie_apply_github_token_env_name(): string {
-	/**
-	 * Filter the env var name holding the GitHub token for apply-back.
-	 *
-	 * @since 0.7.0
-	 *
-	 * @param string $default Default env var name.
-	 */
-	return (string) apply_filters( 'extrachill_roadie_apply_github_token_env', 'GITHUB_TOKEN' );
-}
-
-/**
- * Check whether the apply-back GitHub token env var is present and non-empty.
- *
- * @since 0.7.0
- * @return bool
- */
-function extrachill_roadie_apply_github_token_present(): bool {
-	$name = extrachill_roadie_apply_github_token_env_name();
-	if ( '' === $name ) {
-		return false;
-	}
-	$value = getenv( $name );
-	return is_string( $value ) && '' !== trim( $value );
-}

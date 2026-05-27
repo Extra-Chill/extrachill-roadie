@@ -32,6 +32,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use DataMachine\Engine\AI\Tools\BaseTool;
+use DataMachineCode\Support\GitHubCredentialResolver;
 
 class ECRoadie_ProposeCodeChange extends BaseTool {
 
@@ -107,6 +108,16 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 		if ( ! $ability ) {
 			return $this->buildErrorResponse(
 				'The `wp-codebox/run-agent-task` ability is not registered. Install and activate the wp-codebox plugin on this network.',
+				$this->tool_slug
+			);
+		}
+
+		// Fail fast if GitHub credentials are not configured. There is no
+		// point dispatching an expensive sandbox run when the eventual
+		// apply-back step cannot push or open a PR.
+		if ( ! $this->resolver_is_configured() ) {
+			return $this->buildErrorResponse(
+				'GitHub credentials are not configured. The apply-back step resolves a token per repo via the Data Machine credential profile system. Verify with `wp --allow-root --path=/var/www/extrachill.com datamachine-code github status`, and configure via the `datamachine/update-settings` ability with `github_credential_profiles` + `github_default_profile_id`.',
 				$this->tool_slug
 			);
 		}
@@ -287,5 +298,14 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 			),
 			'raw'              => $result,
 		);
+	}
+
+	/**
+	 * Test seam: ask the resolver whether GitHub auth is configured at all.
+	 *
+	 * @return bool
+	 */
+	protected function resolver_is_configured(): bool {
+		return GitHubCredentialResolver::isConfigured();
 	}
 }
