@@ -344,7 +344,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			)
 		);
 
-		$augmented_body = $this->augment_body_with_attribution( $body );
+		$augmented_body = $this->augment_body_with_attribution( $body, $parameters );
 
 		$input = array(
 			'repo'   => $repo,
@@ -505,7 +505,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			);
 		}
 
-		$augmented_body = $this->augment_body_with_attribution( $body );
+		$augmented_body = $this->augment_body_with_attribution( $body, $parameters );
 
 		$input = array(
 			'repo'         => $repo,
@@ -558,16 +558,31 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	/**
 	 * Add a "Filed via Roadie chat by <user>" footer to issue/comment bodies.
 	 *
-	 * Until extrachill-roadie#8 lands and the agent loop has reliable access
-	 * to `calling_user_id`, the human proposer's identity is captured from
-	 * `get_current_user_id()`. Once #8 lands, the agent can prefer the
-	 * calling user override and this fallback becomes the safety net.
+	 * Priority order for proposer identity (post #8):
+	 *   1. `$parameters['calling_user_id']` — the human on whose behalf the
+	 *      agent loop is running (set by `ChatOrchestrator` and propagated
+	 *      through `ToolParameters::buildParameters` per the
+	 *      `datamachine_get_calling_user_id()` contract).
+	 *   2. `get_current_user_id()` — fallback when the tool is invoked
+	 *      outside an agent loop (CLI, smoke test, direct REST).
 	 *
-	 * @param string $body Original body.
+	 * @param string $body       Original body.
+	 * @param array  $parameters Tool parameters (may carry `calling_user_id`).
 	 * @return string Augmented body.
 	 */
-	protected function augment_body_with_attribution( string $body ): string {
-		$user_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
+	protected function augment_body_with_attribution( string $body, array $parameters = array() ): string {
+		$user_id = 0;
+
+		if ( function_exists( 'datamachine_get_calling_user_id' ) ) {
+			$user_id = (int) datamachine_get_calling_user_id( $parameters );
+		} elseif ( isset( $parameters['calling_user_id'] ) ) {
+			$user_id = (int) $parameters['calling_user_id'];
+		}
+
+		if ( $user_id <= 0 && function_exists( 'get_current_user_id' ) ) {
+			$user_id = (int) get_current_user_id();
+		}
+
 		$username = '';
 		$display  = '';
 
