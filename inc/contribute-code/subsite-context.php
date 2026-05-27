@@ -44,6 +44,8 @@ function extrachill_roadie_default_excluded_plugin_slugs(): array {
 		'extrachill-seo',
 		'extrachill-analytics',
 		'extrachill-cli',
+		'extrachill-tokens',
+		'extrachill-components',
 		'chubes-gallery-lightbox',
 		'redis-cache',
 		'easy-wp-smtp',

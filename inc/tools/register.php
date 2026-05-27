@@ -37,6 +37,7 @@ add_action(
 		require_once __DIR__ . '/class-manage-community.php';
 		require_once __DIR__ . '/class-propose-code-change.php';
 		require_once __DIR__ . '/class-apply-code-change.php';
+		require_once __DIR__ . '/class-file-feature-request.php';
 
 		new ECRoadie_ManageArtistProfile();
 		new ECRoadie_ManageLinkPage();
@@ -44,5 +45,6 @@ add_action(
 		new ECRoadie_ManageCommunity();
 		new ECRoadie_ProposeCodeChange();
 		new ECRoadie_ApplyCodeChange();
+		new ECRoadie_FileFeatureRequest();
 	}
 );
