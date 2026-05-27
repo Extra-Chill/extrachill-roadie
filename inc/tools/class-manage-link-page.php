@@ -11,6 +11,9 @@
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.1.0
+ * @since 0.8.0 Calling-user identity propagation: all actions act on behalf
+ *              of the calling user (or an explicit user_id when admins
+ *              override).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -35,13 +38,17 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		return array(
 			'class'       => self::class,
 			'method'      => 'handle_tool_call',
-			'description' => 'Manage an artist\'s link page on Extra Chill. Can get the full link page, add/remove individual links, replace all links, update social links, change visual styles (colors, fonts, button shapes), and update settings (redirects, tracking pixels, subscribe mode). The artist_id is auto-resolved if the user has only one artist.',
+			'description' => 'Manage an artist\'s link page on Extra Chill. Defaults to the calling user. Admins can target another user by passing user_id. Can get the full link page, add/remove individual links, replace all links, update social links, change visual styles (colors, fonts, button shapes), and update settings (redirects, tracking pixels, subscribe mode). The artist_id is auto-resolved if the user has only one artist.',
 			'parameters'  => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'              => array(
 						'type'        => 'string',
 						'description' => 'Action: "get" (view link page), "add_link" (add a single link), "remove_link" (remove a link by URL or ID), "save_links" (replace all link sections), "save_socials" (replace social links), "save_styles" (update CSS variables), "save_settings" (update settings like redirects, tracking, subscribe mode)',
+					),
+					'user_id'             => array(
+						'type'        => 'integer',
+						'description' => 'Target user ID for auto-resolving artist_id. Optional. Defaults to the calling user. Admin-only override.',
 					),
 					'artist_id'           => array(
 						'type'        => 'integer',
@@ -96,23 +103,30 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 	}
 
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
+		$acting_user_id = $this->resolve_acting_user_id( $parameters );
+
+		$denied = $this->assert_acting_user_allowed( $acting_user_id, $parameters );
+		if ( null !== $denied ) {
+			return $denied;
+		}
+
 		$action = $parameters['action'] ?? '';
 
 		switch ( $action ) {
 			case 'get':
-				return $this->handle_get( $parameters );
+				return $this->handle_get( $parameters, $acting_user_id );
 			case 'add_link':
-				return $this->handle_add_link( $parameters );
+				return $this->handle_add_link( $parameters, $acting_user_id );
 			case 'remove_link':
-				return $this->handle_remove_link( $parameters );
+				return $this->handle_remove_link( $parameters, $acting_user_id );
 			case 'save_links':
-				return $this->handle_save_links( $parameters );
+				return $this->handle_save_links( $parameters, $acting_user_id );
 			case 'save_socials':
-				return $this->handle_save_socials( $parameters );
+				return $this->handle_save_socials( $parameters, $acting_user_id );
 			case 'save_styles':
-				return $this->handle_save_styles( $parameters );
+				return $this->handle_save_styles( $parameters, $acting_user_id );
 			case 'save_settings':
-				return $this->handle_save_settings( $parameters );
+				return $this->handle_save_settings( $parameters, $acting_user_id );
 			default:
 				return $this->buildErrorResponse(
 					'Invalid action "' . $action . '". Use: get, add_link, remove_link, save_links, save_socials, save_styles, save_settings.',
@@ -124,13 +138,15 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 	/**
 	 * Get the full link page data.
 	 */
-	private function handle_get( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_get( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 		if ( is_array( $artist_id ) ) {
 			return $artist_id;
 		}
 
-		return $this->rest_request( 'GET', '/artists/' . $artist_id . '/links' );
+		return $this->rest_request( 'GET', '/artists/' . $artist_id . '/links', array(
+			'user_id' => $acting_user_id,
+		) );
 	}
 
 	/**
@@ -139,8 +155,8 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 	 * Fetches current links, appends the new one, and saves. This convenience
 	 * action avoids making the AI do the fetch-modify-save dance.
 	 */
-	private function handle_add_link( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_add_link( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 		if ( is_array( $artist_id ) ) {
 			return $artist_id;
 		}
@@ -158,7 +174,9 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		$section_title = $parameters['section'] ?? '';
 
 		// Fetch current link page data to get existing links.
-		$current = $this->rest_request( 'GET', '/artists/' . $artist_id . '/links' );
+		$current = $this->rest_request( 'GET', '/artists/' . $artist_id . '/links', array(
+			'user_id' => $acting_user_id,
+		) );
 
 		if ( ! ( $current['success'] ?? false ) ) {
 			return $current;
@@ -201,15 +219,16 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		);
 
 		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
-			'body' => array( 'links' => $sections ),
+			'body'    => array( 'links' => $sections ),
+			'user_id' => $acting_user_id,
 		) );
 	}
 
 	/**
 	 * Remove a link from the link page by URL or link ID.
 	 */
-	private function handle_remove_link( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_remove_link( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 		if ( is_array( $artist_id ) ) {
 			return $artist_id;
 		}
@@ -225,7 +244,9 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		}
 
 		// Fetch current links.
-		$current = $this->rest_request( 'GET', '/artists/' . $artist_id . '/links' );
+		$current = $this->rest_request( 'GET', '/artists/' . $artist_id . '/links', array(
+			'user_id' => $acting_user_id,
+		) );
 
 		if ( ! ( $current['success'] ?? false ) ) {
 			return $current;
@@ -256,15 +277,16 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		}
 
 		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
-			'body' => array( 'links' => $sections ),
+			'body'    => array( 'links' => $sections ),
+			'user_id' => $acting_user_id,
 		) );
 	}
 
 	/**
 	 * Replace all link sections.
 	 */
-	private function handle_save_links( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_save_links( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 		if ( is_array( $artist_id ) ) {
 			return $artist_id;
 		}
@@ -275,15 +297,16 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		}
 
 		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
-			'body' => array( 'links' => $links ),
+			'body'    => array( 'links' => $links ),
+			'user_id' => $acting_user_id,
 		) );
 	}
 
 	/**
 	 * Replace social links.
 	 */
-	private function handle_save_socials( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_save_socials( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 		if ( is_array( $artist_id ) ) {
 			return $artist_id;
 		}
@@ -294,15 +317,16 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		}
 
 		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
-			'body' => array( 'socials' => $socials ),
+			'body'    => array( 'socials' => $socials ),
+			'user_id' => $acting_user_id,
 		) );
 	}
 
 	/**
 	 * Update CSS variables (merge with existing).
 	 */
-	private function handle_save_styles( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_save_styles( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 		if ( is_array( $artist_id ) ) {
 			return $artist_id;
 		}
@@ -313,15 +337,16 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		}
 
 		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
-			'body' => array( 'css_vars' => $css_vars ),
+			'body'    => array( 'css_vars' => $css_vars ),
+			'user_id' => $acting_user_id,
 		) );
 	}
 
 	/**
 	 * Update link page settings.
 	 */
-	private function handle_save_settings( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_save_settings( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 		if ( is_array( $artist_id ) ) {
 			return $artist_id;
 		}
@@ -346,22 +371,24 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		}
 
 		return $this->rest_request( 'PUT', '/artists/' . $artist_id . '/links', array(
-			'body' => $body,
+			'body'    => $body,
+			'user_id' => $acting_user_id,
 		) );
 	}
 
 	/**
-	 * Resolve the artist ID from parameters or auto-detect from user meta.
+	 * Resolve the artist ID from parameters or auto-detect from the acting user's meta.
 	 *
-	 * @param array $parameters Tool parameters.
+	 * @param array $parameters     Tool parameters.
+	 * @param int   $acting_user_id User to auto-detect artists for when artist_id is absent.
 	 * @return int|array<string,mixed> Artist ID on success, or error/disambiguation response array.
 	 */
-	private function resolve_artist_id( array $parameters ) {
+	private function resolve_artist_id( array $parameters, int $acting_user_id ) {
 		if ( ! empty( $parameters['artist_id'] ) ) {
 			return (int) $parameters['artist_id'];
 		}
 
-		$user_id    = get_current_user_id();
+		$user_id    = $acting_user_id;
 		$artist_ids = $this->get_user_artist_ids( $user_id );
 
 		if ( empty( $artist_ids ) ) {

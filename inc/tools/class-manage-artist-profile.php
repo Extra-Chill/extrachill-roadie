@@ -8,6 +8,9 @@
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.1.0
+ * @since 0.8.0 Calling-user identity propagation: list/get/create/update act
+ *              on behalf of the calling user (or an explicit user_id when
+ *              admins override).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -32,13 +35,17 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 		return array(
 			'class'       => self::class,
 			'method'      => 'handle_tool_call',
-			'description' => 'Manage artist profiles on the Extra Chill platform. Can list the current user\'s artists, get artist details, create a new artist profile, or update an existing one (name, bio, genre, city, images). If the user has only one artist, it is auto-selected.',
+			'description' => 'Manage artist profiles on the Extra Chill platform. Defaults to the calling user. Admins can target another user by passing user_id. Can list a user\'s artists, get artist details, create a new artist profile, or update an existing one (name, bio, genre, city, images). If the user has only one artist, it is auto-selected.',
 			'parameters'  => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'           => array(
 						'type'        => 'string',
 						'description' => 'Action to perform: "list" (list user\'s artists), "get" (get artist details), "create" (create new artist), "update" (update existing artist)',
+					),
+					'user_id'          => array(
+						'type'        => 'integer',
+						'description' => 'Target user ID for list/create/auto-resolve. Optional. Defaults to the calling user. Admin-only override.',
 					),
 					'artist_id'        => array(
 						'type'        => 'integer',
@@ -75,17 +82,24 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 	}
 
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
+		$acting_user_id = $this->resolve_acting_user_id( $parameters );
+
+		$denied = $this->assert_acting_user_allowed( $acting_user_id, $parameters );
+		if ( null !== $denied ) {
+			return $denied;
+		}
+
 		$action = $parameters['action'] ?? '';
 
 		switch ( $action ) {
 			case 'list':
-				return $this->handle_list();
+				return $this->handle_list( $acting_user_id );
 			case 'get':
-				return $this->handle_get( $parameters );
+				return $this->handle_get( $parameters, $acting_user_id );
 			case 'create':
-				return $this->handle_create( $parameters );
+				return $this->handle_create( $parameters, $acting_user_id );
 			case 'update':
-				return $this->handle_update( $parameters );
+				return $this->handle_update( $parameters, $acting_user_id );
 			default:
 				return $this->buildErrorResponse(
 					'Invalid action "' . $action . '". Use: list, get, create, update.',
@@ -95,14 +109,14 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 	}
 
 	/**
-	 * List the current user's artist profiles.
+	 * List the acting user's artist profiles.
 	 *
 	 * Artist IDs are stored in user meta (network-wide), but we need to
 	 * read post data from the artist blog via switch_to_blog (safe for
 	 * data reads — only abilities fail cross-site).
 	 */
-	private function handle_list(): array {
-		$user_id    = get_current_user_id();
+	private function handle_list( int $acting_user_id ): array {
+		$user_id    = $acting_user_id;
 		$artist_ids = $this->get_user_artist_ids( $user_id );
 
 		if ( empty( $artist_ids ) ) {
@@ -156,20 +170,22 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 	/**
 	 * Get artist profile details.
 	 */
-	private function handle_get( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_get( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 
 		if ( is_array( $artist_id ) ) {
 			return $artist_id; // Error or disambiguation response.
 		}
 
-		return $this->rest_request( 'GET', '/artists/' . $artist_id );
+		return $this->rest_request( 'GET', '/artists/' . $artist_id, array(
+			'user_id' => $acting_user_id,
+		) );
 	}
 
 	/**
 	 * Create a new artist profile.
 	 */
-	private function handle_create( array $parameters ): array {
+	private function handle_create( array $parameters, int $acting_user_id ): array {
 		$name = $parameters['name'] ?? '';
 
 		if ( empty( $name ) ) {
@@ -192,7 +208,8 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 		}
 
 		$result = $this->rest_request( 'POST', '/artists', array(
-			'body' => $body,
+			'body'    => $body,
+			'user_id' => $acting_user_id,
 		) );
 
 		if ( $result['success'] ?? false ) {
@@ -205,8 +222,8 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 	/**
 	 * Update an existing artist profile.
 	 */
-	private function handle_update( array $parameters ): array {
-		$artist_id = $this->resolve_artist_id( $parameters );
+	private function handle_update( array $parameters, int $acting_user_id ): array {
+		$artist_id = $this->resolve_artist_id( $parameters, $acting_user_id );
 
 		if ( is_array( $artist_id ) ) {
 			return $artist_id; // Error or disambiguation response.
@@ -230,7 +247,8 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 		}
 
 		$result = $this->rest_request( 'PUT', '/artists/' . $artist_id, array(
-			'body' => $body,
+			'body'    => $body,
+			'user_id' => $acting_user_id,
 		) );
 
 		if ( $result['success'] ?? false ) {
@@ -241,17 +259,18 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 	}
 
 	/**
-	 * Resolve the artist ID from parameters or auto-detect from user meta.
+	 * Resolve the artist ID from parameters or auto-detect from the acting user's meta.
 	 *
-	 * @param array $parameters Tool parameters.
+	 * @param array $parameters     Tool parameters.
+	 * @param int   $acting_user_id User to auto-detect artists for when artist_id is absent.
 	 * @return int|array<string,mixed> Artist ID on success, or error/disambiguation response array.
 	 */
-	private function resolve_artist_id( array $parameters ) {
+	private function resolve_artist_id( array $parameters, int $acting_user_id ) {
 		if ( ! empty( $parameters['artist_id'] ) ) {
 			return (int) $parameters['artist_id'];
 		}
 
-		$user_id    = get_current_user_id();
+		$user_id    = $acting_user_id;
 		$artist_ids = $this->get_user_artist_ids( $user_id );
 
 		if ( empty( $artist_ids ) ) {

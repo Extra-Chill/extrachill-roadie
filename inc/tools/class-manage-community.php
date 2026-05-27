@@ -11,6 +11,9 @@
  *
  * @package ExtraChillRoadie\Tools
  * @since 0.1.0
+ * @since 0.8.0 Calling-user identity propagation: topics, replies, and
+ *              notifications are attributed to the calling user (or an
+ *              explicit user_id when admins override).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -35,13 +38,17 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		return array(
 			'class'       => self::class,
 			'method'      => 'handle_tool_call',
-			'description' => 'Interact with the Extra Chill community forums. Browse forums, list and read topics, create new topics, post replies, and manage notifications. All actions run on community.extrachill.com.',
+			'description' => 'Interact with the Extra Chill community forums. Browse forums, list and read topics, create new topics, post replies, and manage notifications. Forum posts and replies are attributed to the calling user by default; admins may override via user_id. All actions run on community.extrachill.com.',
 			'parameters'  => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'          => array(
 						'type'        => 'string',
 						'description' => 'Action: "list_forums" (browse available forums), "list_topics" (list topics in a forum or all), "get_topic" (read a topic with replies), "create_topic" (post a new topic), "create_reply" (reply to a topic), "get_notifications" (check notifications), "mark_notifications_read" (mark all as read)',
+					),
+					'user_id'         => array(
+						'type'        => 'integer',
+						'description' => 'Target user ID for write actions (create_topic, create_reply) and notification reads. Optional. Defaults to the calling user. Admin-only override.',
 					),
 					'forum_id'        => array(
 						'type'        => 'integer',
@@ -88,21 +95,37 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		$action = $parameters['action'] ?? '';
 
+		// Read-only actions that don't need a user context.
+		$public_actions = array( 'list_forums', 'list_topics', 'get_topic' );
+
+		if ( in_array( $action, $public_actions, true ) ) {
+			switch ( $action ) {
+				case 'list_forums':
+					return $this->handle_list_forums();
+				case 'list_topics':
+					return $this->handle_list_topics( $parameters );
+				case 'get_topic':
+					return $this->handle_get_topic( $parameters );
+			}
+		}
+
+		// User-scoped actions: resolve and authorize.
+		$acting_user_id = $this->resolve_acting_user_id( $parameters );
+
+		$denied = $this->assert_acting_user_allowed( $acting_user_id, $parameters );
+		if ( null !== $denied ) {
+			return $denied;
+		}
+
 		switch ( $action ) {
-			case 'list_forums':
-				return $this->handle_list_forums();
-			case 'list_topics':
-				return $this->handle_list_topics( $parameters );
-			case 'get_topic':
-				return $this->handle_get_topic( $parameters );
 			case 'create_topic':
-				return $this->handle_create_topic( $parameters );
+				return $this->handle_create_topic( $parameters, $acting_user_id );
 			case 'create_reply':
-				return $this->handle_create_reply( $parameters );
+				return $this->handle_create_reply( $parameters, $acting_user_id );
 			case 'get_notifications':
-				return $this->handle_get_notifications( $parameters );
+				return $this->handle_get_notifications( $parameters, $acting_user_id );
 			case 'mark_notifications_read':
-				return $this->handle_mark_notifications_read();
+				return $this->handle_mark_notifications_read( $acting_user_id );
 			default:
 				return $this->buildErrorResponse(
 					'Invalid action "' . $action . '". Use: list_forums, list_topics, get_topic, create_topic, create_reply, get_notifications, mark_notifications_read.',
@@ -169,7 +192,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 	/**
 	 * Create a new forum topic.
 	 */
-	private function handle_create_topic( array $parameters ): array {
+	private function handle_create_topic( array $parameters, int $acting_user_id ): array {
 		$forum_id = $parameters['forum_id'] ?? null;
 		$title    = $parameters['title'] ?? '';
 		$content  = $parameters['content'] ?? '';
@@ -209,11 +232,12 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		}
 
 		$result = $this->rest_request( 'POST', '/community/topics', array(
-			'body' => array(
+			'body'    => array(
 				'forum_id' => (int) $forum_id,
 				'title'    => $title,
 				'content'  => $content,
 			),
+			'user_id' => $acting_user_id,
 		) );
 
 		if ( $result['success'] ?? false ) {
@@ -226,7 +250,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 	/**
 	 * Post a reply to a topic.
 	 */
-	private function handle_create_reply( array $parameters ): array {
+	private function handle_create_reply( array $parameters, int $acting_user_id ): array {
 		$topic_id = $parameters['topic_id'] ?? null;
 		$content  = $parameters['content'] ?? '';
 
@@ -247,7 +271,8 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		}
 
 		$result = $this->rest_request( 'POST', '/community/replies', array(
-			'body' => $body,
+			'body'    => $body,
+			'user_id' => $acting_user_id,
 		) );
 
 		if ( $result['success'] ?? false ) {
@@ -258,9 +283,9 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 	}
 
 	/**
-	 * Get the current user's notifications.
+	 * Get the acting user's notifications.
 	 */
-	private function handle_get_notifications( array $parameters ): array {
+	private function handle_get_notifications( array $parameters, int $acting_user_id ): array {
 		$query = array();
 
 		if ( isset( $parameters['unread'] ) ) {
@@ -268,15 +293,18 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		}
 
 		return $this->rest_request( 'GET', '/community/notifications', array(
-			'query' => $query,
+			'query'   => $query,
+			'user_id' => $acting_user_id,
 		) );
 	}
 
 	/**
-	 * Mark all notifications as read.
+	 * Mark all notifications as read for the acting user.
 	 */
-	private function handle_mark_notifications_read(): array {
-		$result = $this->rest_request( 'POST', '/community/notifications/mark-read' );
+	private function handle_mark_notifications_read( int $acting_user_id ): array {
+		$result = $this->rest_request( 'POST', '/community/notifications/mark-read', array(
+			'user_id' => $acting_user_id,
+		) );
 
 		if ( $result['success'] ?? false ) {
 			$result['message'] = 'All notifications marked as read.';
