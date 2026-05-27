@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.9.0] - 2026-05-27
+
+### Added
+- grant extra_chill_team the propose-code cap by default
+
 ## [0.8.0] - 2026-05-27
 
 ### Added
