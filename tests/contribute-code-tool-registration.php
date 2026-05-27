@@ -9,6 +9,28 @@
  */
 
 require_once __DIR__ . '/contribute-code-bootstrap.php';
+require_once __DIR__ . '/_stub-github-credential-resolver.php';
+
+// WP_Error stub for the apply-tool error-path assertions below.
+if ( ! class_exists( 'WP_Error' ) ) {
+	class WP_Error {
+		public string $code;
+		public string $message;
+		public function __construct( string $code = '', string $message = '' ) {
+			$this->code    = $code;
+			$this->message = $message;
+		}
+		public function get_error_message(): string {
+			return $this->message;
+		}
+	}
+}
+
+if ( ! function_exists( 'is_wp_error' ) ) {
+	function is_wp_error( $thing ): bool {
+		return $thing instanceof WP_Error;
+	}
+}
 
 // Provide a stub BaseTool so the tool classes can be loaded.
 if ( ! class_exists( 'DataMachine\\Engine\\AI\\Tools\\BaseTool' ) ) {
@@ -107,17 +129,25 @@ roadie_test_assert(
 	'empty apply artifact_id must fail'
 );
 
-// --- Apply: missing GITHUB_TOKEN fails with clear error -----------------
-putenv( 'GITHUB_TOKEN=' );
+// --- Apply: resolver-not-configured fails with clear error --------------
+// Issue #22: apply-back gates on GitHubCredentialResolver::isConfigured()
+// rather than a process-env GITHUB_TOKEN check.
+\DataMachineCode\Support\GitHubCredentialResolver::$test_is_configured = false;
 $result_no_token = $apply->handle_tool_call( array( 'artifact_id' => 'artifact-bundle-foo' ) );
 roadie_test_assert(
 	false === $result_no_token['success'],
-	'apply must fail when GITHUB_TOKEN is unset'
+	'apply must fail when GitHubCredentialResolver::isConfigured() is false'
 );
 roadie_test_assert(
-	false !== strpos( $result_no_token['error'] ?? '', 'GITHUB_TOKEN' ),
-	'apply error must mention GITHUB_TOKEN'
+	false !== strpos( $result_no_token['error'] ?? '', 'credentials are not configured' )
+		|| false !== strpos( $result_no_token['error'] ?? '', 'datamachine-code github status' ),
+	'apply error must reference the credential profile system, not a GITHUB_TOKEN env var'
 );
+roadie_test_assert(
+	false === strpos( $result_no_token['error'] ?? '', 'GITHUB_TOKEN' ),
+	'apply error must NOT mention GITHUB_TOKEN env var (issue #22)'
+);
+\DataMachineCode\Support\GitHubCredentialResolver::ec_roadie_test_reset();
 
 // --- Propose: missing wp_get_ability surfaces a useful error -----------
 $result_no_ability = $propose->handle_tool_call( array( 'task_description' => 'do a thing' ) );
