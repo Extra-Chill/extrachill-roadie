@@ -178,6 +178,13 @@ function extrachill_roadie_build_recipe( array $context, array $repo_map, array 
 		if ( 'agent-stack-plugin' === $kind ) {
 			continue;
 		}
+		// Platform-wide plugins are issue-trackable + code-trackable, but
+		// not editable from a subsite-context recipe. The subsite-context
+		// detector already excludes them from $context['plugins'], so this
+		// guard is belt-and-suspenders against future exclusion-list drift.
+		if ( 'platform-plugin' === $kind ) {
+			continue;
+		}
 
 		$target = $wp_content_target . '/plugins/' . $slug;
 		$mount  = $build_mount( $kind, $slug, $entry, $target );

@@ -27,7 +27,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Slug categories are tracked via `kind`:
  *   - `theme`              — wp-content/themes/<slug>/
- *   - `plugin`             — wp-content/plugins/<slug>/
+ *   - `plugin`             — wp-content/plugins/<slug>/, subsite-specific
+ *   - `platform-plugin`    — wp-content/plugins/<slug>/, network-wide platform
+ *                             boilerplate. Excluded from subsite-context detection
+ *                             (so it doesn't mount as an editable surface when a
+ *                             contributor is on a subsite), but available in the
+ *                             registry for issue-tracking, cross-repo references,
+ *                             and explicit-target code changes.
  *   - `agent-stack-plugin` — read-only references the sandboxed agent needs
  *
  * @since 0.7.0
@@ -97,6 +103,86 @@ function extrachill_roadie_default_repo_map(): array {
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
+		),
+
+		// Network-wide platform plugins. Not auto-mounted as editable surfaces
+		// when a contributor is chatting from a subsite (the subsite-context
+		// detector deliberately excludes them — they're platform boilerplate
+		// from the subsite's POV), but they ARE legitimately issue-trackable
+		// and code-change-trackable. Listing them here keeps the registry as
+		// the single allowlist consulted by both `file_feature_request` and
+		// future explicit-repo override flows.
+		'extrachill-roadie' => array(
+			'repo'                        => 'Extra-Chill/extrachill-roadie',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-users' => array(
+			'repo'                        => 'Extra-Chill/extrachill-users',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-multisite' => array(
+			'repo'                        => 'Extra-Chill/extrachill-multisite',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-api' => array(
+			'repo'                        => 'Extra-Chill/extrachill-api',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-admin-tools' => array(
+			'repo'                        => 'Extra-Chill/extrachill-admin-tools',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-newsletter' => array(
+			'repo'                        => 'Extra-Chill/extrachill-newsletter',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-search' => array(
+			'repo'                        => 'Extra-Chill/extrachill-search',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-seo' => array(
+			'repo'                        => 'Extra-Chill/extrachill-seo',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-analytics' => array(
+			'repo'                        => 'Extra-Chill/extrachill-analytics',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-cli' => array(
+			'repo'                        => 'Extra-Chill/extrachill-cli',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-tokens' => array(
+			'repo'                        => 'Extra-Chill/extrachill-tokens',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		'extrachill-components' => array(
+			'repo'                        => 'Extra-Chill/extrachill-components',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
 		),
 
 		// Read-only agent stack (mounted as references so the sandboxed agent
