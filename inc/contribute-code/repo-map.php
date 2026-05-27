@@ -42,63 +42,63 @@ if ( ! defined( 'ABSPATH' ) ) {
 function extrachill_roadie_default_repo_map(): array {
 	$defaults = array(
 		// Themes.
-		'extrachill' => array(
-			'repo'                          => 'Extra-Chill/extrachill',
-			'default_branch'                => 'main',
-			'repo_root_relative_to_mount'   => '',
-			'kind'                          => 'theme',
+		'extrachill'                 => array(
+			'repo'                        => 'Extra-Chill/extrachill',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'theme',
 		),
 
 		// Extra Chill plugins commonly active on individual subsites.
-		'extrachill-artist-platform'  => array(
+		'extrachill-artist-platform' => array(
 			'repo'                        => 'Extra-Chill/extrachill-artist-platform',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
-		'extrachill-community'        => array(
+		'extrachill-community'       => array(
 			'repo'                        => 'Extra-Chill/extrachill-community',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
-		'extrachill-events'           => array(
+		'extrachill-events'          => array(
 			'repo'                        => 'Extra-Chill/extrachill-events',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
-		'extrachill-shop'             => array(
+		'extrachill-shop'            => array(
 			'repo'                        => 'Extra-Chill/extrachill-shop',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
-		'extrachill-blog'             => array(
+		'extrachill-blog'            => array(
 			'repo'                        => 'Extra-Chill/extrachill-blog',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
-		'extrachill-contact'          => array(
+		'extrachill-contact'         => array(
 			'repo'                        => 'Extra-Chill/extrachill-contact',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
-		'extrachill-content-blocks'   => array(
+		'extrachill-content-blocks'  => array(
 			'repo'                        => 'Extra-Chill/extrachill-content-blocks',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
-		'extrachill-docs'             => array(
+		'extrachill-docs'            => array(
 			'repo'                        => 'Extra-Chill/extrachill-docs',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
-		'extrachill-ai-adventure'     => array(
+		'extrachill-ai-adventure'    => array(
 			'repo'                        => 'Extra-Chill/extrachill-ai-adventure',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
@@ -112,73 +112,73 @@ function extrachill_roadie_default_repo_map(): array {
 		// and code-change-trackable. Listing them here keeps the registry as
 		// the single allowlist consulted by both `file_feature_request` and
 		// future explicit-repo override flows.
-		'extrachill-roadie' => array(
+		'extrachill-roadie'          => array(
 			'repo'                        => 'Extra-Chill/extrachill-roadie',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-users' => array(
+		'extrachill-users'           => array(
 			'repo'                        => 'Extra-Chill/extrachill-users',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-multisite' => array(
+		'extrachill-multisite'       => array(
 			'repo'                        => 'Extra-Chill/extrachill-multisite',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-api' => array(
+		'extrachill-api'             => array(
 			'repo'                        => 'Extra-Chill/extrachill-api',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-admin-tools' => array(
+		'extrachill-admin-tools'     => array(
 			'repo'                        => 'Extra-Chill/extrachill-admin-tools',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-newsletter' => array(
+		'extrachill-newsletter'      => array(
 			'repo'                        => 'Extra-Chill/extrachill-newsletter',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-search' => array(
+		'extrachill-search'          => array(
 			'repo'                        => 'Extra-Chill/extrachill-search',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-seo' => array(
+		'extrachill-seo'             => array(
 			'repo'                        => 'Extra-Chill/extrachill-seo',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-analytics' => array(
+		'extrachill-analytics'       => array(
 			'repo'                        => 'Extra-Chill/extrachill-analytics',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-cli' => array(
+		'extrachill-cli'             => array(
 			'repo'                        => 'Extra-Chill/extrachill-cli',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-tokens' => array(
+		'extrachill-tokens'          => array(
 			'repo'                        => 'Extra-Chill/extrachill-tokens',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',
 		),
-		'extrachill-components' => array(
+		'extrachill-components'      => array(
 			'repo'                        => 'Extra-Chill/extrachill-components',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
@@ -187,31 +187,31 @@ function extrachill_roadie_default_repo_map(): array {
 
 		// Read-only agent stack (mounted as references so the sandboxed agent
 		// can grep them, but never as editable surfaces).
-		'agents-api' => array(
+		'agents-api'                 => array(
 			'repo'                        => 'Automattic/agents-api',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'agent-stack-plugin',
 		),
-		'data-machine' => array(
+		'data-machine'               => array(
 			'repo'                        => 'Extra-Chill/data-machine',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'agent-stack-plugin',
 		),
-		'data-machine-code' => array(
+		'data-machine-code'          => array(
 			'repo'                        => 'Extra-Chill/data-machine-code',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'agent-stack-plugin',
 		),
-		'ai-provider-for-openai' => array(
+		'ai-provider-for-openai'     => array(
 			'repo'                        => 'WordPress/ai-provider-for-openai',
 			'default_branch'              => 'trunk',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'agent-stack-plugin',
 		),
-		'ai-provider-for-anthropic' => array(
+		'ai-provider-for-anthropic'  => array(
 			'repo'                        => 'WordPress/ai-provider-for-anthropic',
 			'default_branch'              => 'trunk',
 			'repo_root_relative_to_mount' => '',

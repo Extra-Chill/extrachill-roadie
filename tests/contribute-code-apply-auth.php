@@ -280,6 +280,7 @@ roadie_test_assert(
 );
 
 // --- Static check: no putenv('GITHUB_TOKEN'... in the apply source ----
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Smoke test runs outside WordPress; WP_Filesystem is not available.
 $apply_source = (string) file_get_contents( dirname( __DIR__ ) . '/inc/tools/class-apply-code-change.php' );
 roadie_test_assert(
 	false === strpos( $apply_source, "putenv( 'GITHUB_TOKEN" ),
