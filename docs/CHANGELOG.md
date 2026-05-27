@@ -2,6 +2,19 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.8.0] - 2026-05-27
+
+### Added
+- file_feature_request chat tool for filing GitHub issues from Roadie
+- feat(agent-mode): adopt AgentModeRegistry for roadie mode + calling_user_id propagation
+- sandbox-backed code contribution flow
+
+### Changed
+- refactor(apply-code-change): use GitHubCredentialResolver for git push + gh pr create
+
+### Fixed
+- fix(token-bridge): bridge FAB chrome to --accent for visibility
+
 ## [0.7.0] - 2026-05-23
 
 ### Added
