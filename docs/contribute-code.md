@@ -43,23 +43,31 @@ wp --allow-root --path=/var/www/extrachill.com network meta update 1 wp_codebox_
 
 Roadie does **not** include the agent stack in its own recipe — wp-codebox handles it via these network options. Including them would double-mount.
 
-### 3. GitHub token (host-only, for apply-back)
+### 3. GitHub credentials (host-only, for apply-back)
 
-The `apply_code_change` tool shells out to `git push` and `gh pr create` on the host. Both pick up `GITHUB_TOKEN` from the PHP process environment. **The token never enters the sandbox** — sandboxes don't push.
+The `apply_code_change` tool shells out to `git push` and `gh pr create` on the host. GitHub auth is resolved per-repo via the Data Machine credential profile system (`DataMachineCode\Support\GitHubCredentialResolver`), which supports both classic PATs and GitHub App installation tokens. **The token never enters the sandbox** — sandboxes don't push.
 
-In `wp-config.php`:
+For each shell-out, apply-back:
 
-```php
-putenv( 'GITHUB_TOKEN=' . 'ghp_xxxxxxxxxxxx' );
+1. Calls `GitHubCredentialResolver::resolve( [ 'repo' => $repo ] )` to mint a fresh credential scoped to the target repo (picks the matching profile by `allowed_repos`, falls back to the default profile).
+2. Threads the resulting token into the shell command via per-command env: `git -c http.extraheader="Authorization: Bearer <token>" push ...` and `GH_TOKEN=<token> gh pr create ...`.
+3. Never `putenv()`s the token globally — there is no leakage into the PHP process env, into the sandbox, or into any subprocess that wasn't explicitly built with the credential.
+
+When the configured profile uses App mode, the resolver mints a short-lived installation token (`ghs_...`, ~1 hour TTL) on each call. PRs opened by apply-back are then authored by the GitHub App's bot identity (e.g. `homeboy-ci[bot]`), not by a personal account.
+
+#### Verify configuration
+
+```bash
+wp --allow-root --path=/var/www/extrachill.com datamachine-code github status
 ```
 
-Token needs `repo` scope (classic) or fine-grained equivalent (contents read/write + pull requests read/write) on every Extra-Chill repo the flow might target. To use a different env var name:
+This prints the default profile id, the configured mode, and a configured/not-configured summary per profile. Both `apply_code_change` and `propose_code_change` fail fast with an explicit error if `GitHubCredentialResolver::isConfigured()` is false.
 
-```php
-add_filter( 'extrachill_roadie_apply_github_token_env', fn() => 'EC_BOT_GH_TOKEN' );
-```
+#### Configure profiles
 
-The tool fails with a clear error if the env var isn't set or is empty.
+Profiles live in the `github_credential_profiles` setting, with `github_default_profile_id` pointing at the fallback. Write via the `datamachine/update-settings` ability (REST, CLI, or chat). The resolver also reads the legacy single-credential keys (`github_pat`, `github_auth_mode`, `github_app_*`) when the new structure is empty, so existing installs keep working until operators migrate.
+
+Tokens never need to be exported in the PHP-FPM environment, in `wp-config.php`, or anywhere else outside the credential profile store.
 
 ### 4. OpenAI credentials (inheritance, bridged from options to env)
 
@@ -161,7 +169,8 @@ If a contributor describes a change to a plugin that isn't in the map, the recip
 │    3. git apply                                                     │
 │    4. git commit -m "fix(<slug>): <summary>"                        │
 │    5. git push origin <branch>                                      │
-│    6. gh pr create (uses GITHUB_TOKEN from host env)                │
+│    6. gh pr create (GH_TOKEN from per-command env, freshly minted   │
+│         by GitHubCredentialResolver — never global putenv)          │
 │  Returns pr_urls back to chat                                       │
 └────────────────────────────────────────────────────────────────────┘
 ```
@@ -174,7 +183,7 @@ Sandbox boundary: nothing crosses except (1) mounted host files into VFS at boot
 # 1. Verify env is set up
 wp --allow-root --path=/var/www/extrachill.com network meta get 1 wp_codebox_bin
 wp --allow-root --path=/var/www/extrachill.com network meta get 1 wp_codebox_component_paths
-echo "GITHUB_TOKEN=${GITHUB_TOKEN:+set}"
+wp --allow-root --path=/var/www/extrachill.com datamachine-code github status
 
 # 2. Trigger propose tool
 wp --allow-root --path=/var/www/extrachill.com --url=community.extrachill.com eval '
@@ -202,7 +211,7 @@ echo wp_json_encode( $result, JSON_PRETTY_PRINT );'
 
 - **Preview URL TTL:** controlled by `preview_hold_seconds` (default 900). Override via `extrachill_roadie_preview_hold_seconds` filter. Max 3600.
 - **Worktree convention:** apply-back creates worktrees as `<repo>@roadie-<slug>-<short-artifact-id>`. These are tracked in the DMC workspace registry and can be cleaned up via `wp datamachine-code workspace worktree mark-cleanup-eligible <handle>` after PR merge.
-- **Commit identity:** all commits authored by `Extra Chill Bot <bot@extrachill.com>` using the host `GITHUB_TOKEN`. Override via `extrachill_roadie_apply_commit_name` / `extrachill_roadie_apply_commit_email` filters.
+- **Commit identity:** all commits authored by `Extra Chill Bot <bot@extrachill.com>` (configured via `extrachill_roadie_apply_commit_name` / `extrachill_roadie_apply_commit_email` filters). The PR author on GitHub is whoever owns the resolved credential profile — when using the default `homeboy-ci` App profile, PRs are authored by `homeboy-ci[bot]`.
 - **No release / no deploy:** apply-back opens a PR; merge and release stay manual on GitHub. There is no path from chat to production deploy.
 
 ## Upstream dependencies & open work
