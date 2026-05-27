@@ -3,7 +3,11 @@
   "changelog_target": "docs/CHANGELOG.md",
   "remote_path": "wp-content/plugins/extrachill-roadie",
   "extensions": {
-    "wordpress": {}
+    "wordpress": {
+      "settings": {
+        "test_backend": "host"
+      }
+    }
   },
   "version_targets": [
     {
