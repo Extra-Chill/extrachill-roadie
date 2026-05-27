@@ -31,6 +31,11 @@ require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/permissions.php';
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/frontend-chat.php';
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/onboarding.php';
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/assets.php';
+require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/subsite-context.php';
+require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/repo-map.php';
+require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/recipe-builder.php';
+require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/capabilities.php';
+require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/inherit-resolver.php';
 
 /**
  * Bootstrap Roadie policy hooks.
