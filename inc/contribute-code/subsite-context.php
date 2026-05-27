@@ -148,19 +148,19 @@ function extrachill_roadie_plugin_file_to_slug( string $plugin_file ): string {
  * @return array<string,mixed>
  */
 function extrachill_roadie_detect_subsite_context( ?int $blog_id = null ): array {
-	$blog_id = $blog_id ?: (int) get_current_blog_id();
+	$blog_id = ( $blog_id > 0 ) ? $blog_id : (int) get_current_blog_id();
 
 	$switched = false;
-	if ( function_exists( 'switch_to_blog' ) && $blog_id !== (int) get_current_blog_id() ) {
+	if ( function_exists( 'switch_to_blog' ) && (int) get_current_blog_id() !== $blog_id ) {
 		switch_to_blog( $blog_id );
 		$switched = true;
 	}
 
-	$theme         = wp_get_theme();
-	$stylesheet    = $theme->get_stylesheet();
-	$theme_path    = (string) $theme->get_stylesheet_directory();
-	$parent_slug   = '';
-	$parent        = $theme->parent();
+	$theme       = wp_get_theme();
+	$stylesheet  = $theme->get_stylesheet();
+	$theme_path  = (string) $theme->get_stylesheet_directory();
+	$parent_slug = '';
+	$parent      = $theme->parent();
 	if ( $parent ) {
 		$parent_slug = (string) $parent->get_stylesheet();
 	}

@@ -151,7 +151,7 @@ function extrachill_roadie_build_recipe( array $context, array $repo_map, array 
 			$target = $wp_content_target . '/themes/' . $theme_slug;
 			$mount  = $build_mount( 'theme', $theme_slug, $entry, $target );
 			if ( $mount ) {
-				$mounts[]                       = $mount;
+				$mounts[]                        = $mount;
 				$editable_targets[ $theme_slug ] = $target;
 			}
 		} else {

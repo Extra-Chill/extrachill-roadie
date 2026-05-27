@@ -119,7 +119,10 @@ function extrachill_roadie_resolve_inheritance( $resolution, $request, $input ):
 	unset( $input );
 
 	if ( ! is_array( $resolution ) ) {
-		$resolution = array( 'connectors' => array(), 'settings' => array() );
+		$resolution = array(
+			'connectors' => array(),
+			'settings'   => array(),
+		);
 	}
 
 	$connector_map = extrachill_roadie_default_connector_map();
@@ -150,7 +153,11 @@ function extrachill_roadie_resolve_inheritance( $resolution, $request, $input ):
 
 		// Bridge: export the value into the host PHP process env under the
 		// configured env var name. WP Codebox's secret_env will inherit it.
+		// This is the intentional temporary bridge documented in PR #13 — it
+		// is removed when wp-codebox's inheritance contract supports
+		// filter-returned values directly (chubes4/wp-codebox#88).
 		if ( ! empty( $meta['env_var'] ) ) {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_putenv -- Intentional secret_env bridge to wp-codebox; see comment above.
 			putenv( $meta['env_var'] . '=' . $value );
 		}
 
