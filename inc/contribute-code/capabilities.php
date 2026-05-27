@@ -2,8 +2,8 @@
 /**
  * Capability mapping for the contribute-code chat tools.
  *
- * Adds `extrachill_propose_code` and grants it to administrators and editors
- * by default. Override the role grant via the
+ * Adds `extrachill_propose_code` and grants it to administrators, editors,
+ * and the Extra Chill team role by default. Override the role grant via the
  * `extrachill_roadie_propose_code_roles` filter; override per-user via the
  * `user_has_cap` filter as usual.
  *
@@ -28,7 +28,13 @@ const EXTRACHILL_ROADIE_PROPOSE_CODE_CAP = 'extrachill_propose_code';
  * @return string[]
  */
 function extrachill_roadie_propose_code_default_roles(): array {
-	$defaults = array( 'administrator', 'editor' );
+	// `extra_chill_team` is the Extra Chill platform's trust role — granted to
+	// team members who run the network's content + community operations. Giving
+	// the team the propose-code cap by default means any team member can file
+	// feature requests / propose code changes via Roadie chat without needing
+	// a per-user grant. Other consumers can narrow this via the
+	// `extrachill_roadie_propose_code_roles` filter below.
+	$defaults = array( 'administrator', 'editor', 'extra_chill_team' );
 
 	/**
 	 * Filter the roles that automatically get the contribute-code capability.
