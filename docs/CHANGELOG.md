@@ -2,6 +2,17 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.10.0] - 2026-05-31
+
+### Added
+- add present_question tool for multiple-choice question cards
+- role-aware roadie chat surface (public/team/admin)
+- activate roadie mode + real page context in frontend chat
+- map chat 0.9-0.13 status tokens in roadie token bridge
+
+### Fixed
+- use host-smoke test backend for standalone smoke tests
+
 ## [0.9.0] - 2026-05-27
 
 ### Added
