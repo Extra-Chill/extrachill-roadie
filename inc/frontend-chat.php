@@ -55,7 +55,7 @@ add_filter( 'frontend_agent_chat_config', 'extrachill_roadie_frontend_chat_confi
  * @param array            $config     Frontend chat configuration.
  * @return array Modified chat input.
  */
-function extrachill_roadie_frontend_chat_input( $chat_input, $request, string $agent_slug, array $config ): array {
+function extrachill_roadie_frontend_chat_input( $chat_input, $request, string $agent_slug, array $config ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $config is required by the 4-arg frontend_agent_chat_chat_input/queue_input filter signature.
 	if ( ! is_array( $chat_input ) ) {
 		return is_array( $chat_input ) ? $chat_input : array();
 	}
