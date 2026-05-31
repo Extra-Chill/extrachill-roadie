@@ -23,6 +23,65 @@ const EXTRACHILL_ROADIE_AGENT_SLUG = 'roadie';
 const EXTRACHILL_ROADIE_AGENT_NAME = 'Roadie';
 
 /**
+ * Role tier: public visitor (logged out, or no team capability).
+ */
+const EXTRACHILL_ROADIE_TIER_PUBLIC = 'public';
+
+/**
+ * Role tier: Extra Chill team member (`access_roadie` / `extra_chill_team`).
+ */
+const EXTRACHILL_ROADIE_TIER_TEAM = 'team';
+
+/**
+ * Role tier: administrator (`manage_options`).
+ */
+const EXTRACHILL_ROADIE_TIER_ADMIN = 'admin';
+
+/**
+ * Resolve a user's Roadie role tier.
+ *
+ * This is the ONE auditable capability→tier mapping for the whole Roadie
+ * surface. The role-aware guidance (inc/agent-mode/register.php) and the
+ * per-tier tool-visibility filter (inc/tools/register.php) both consume it,
+ * so the tier boundaries live in exactly one place.
+ *
+ * Tiers (highest wins):
+ *   - `admin`  — `manage_options`. Everything, plus acting on behalf of other
+ *                users via an explicit `user_id`.
+ *   - `team`   — `access_roadie` (granted by the `extra_chill_team` role on
+ *                every site; extrachill-users#45). Full platform management
+ *                tool surface + code-contribution actions.
+ *   - `public` — everyone else (logged out, or a logged-in user without team
+ *                access). Explore/guidance only; no management tools offered.
+ *
+ * A user_id of 0 (no human caller — system task, scheduled job, background
+ * pipeline) resolves to `public`: there is no authenticated actor to grant
+ * the team/admin surface to, and user-scoped writes are inappropriate without
+ * a caller. System tasks reach abilities directly with their own gates.
+ *
+ * @since 0.10.0
+ *
+ * @param int $user_id User ID to resolve. 0 means "no human caller".
+ * @return string One of `public`, `team`, `admin`.
+ */
+function extrachill_roadie_user_tier( int $user_id ): string {
+	if ( $user_id <= 0 ) {
+		return EXTRACHILL_ROADIE_TIER_PUBLIC;
+	}
+
+	if ( user_can( $user_id, 'manage_options' ) ) {
+		return EXTRACHILL_ROADIE_TIER_ADMIN;
+	}
+
+	// phpcs:ignore WordPress.WP.Capabilities.Unknown -- Custom cap granted by the extra_chill_team role (extrachill-users#45).
+	if ( user_can( $user_id, 'access_roadie' ) ) {
+		return EXTRACHILL_ROADIE_TIER_TEAM;
+	}
+
+	return EXTRACHILL_ROADIE_TIER_PUBLIC;
+}
+
+/**
  * Resolve redirect URIs allowed for browser-based bridge auth.
  *
  * Keep this explicit and auditable. Same-site callbacks are already allowed by
