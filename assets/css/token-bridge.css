@@ -9,13 +9,21 @@
  * Agents API abilities, not Data Machine internals. The token bridge
  * lives here in Roadie (the EC platform consumer), never in FAC.
  *
- * Token surface (all upstream from frontend-agent-chat 0.8.x):
+ * Token surface (upstream from frontend-agent-chat 0.13.x):
  *   FAB:       --frontend-agent-chat-fab-{bg,color,border-color,font-size,offset,badge-bg}
  *   Drawer:    --frontend-agent-chat-drawer-{bg,width}
  *   Surface:   --frontend-agent-chat-{accent,text-primary,text-muted,border-color,bg-muted}
  *   Typography:--frontend-agent-chat-{font-family,header-font-family,font-size,header-font-size}
  *   Spacing:   --frontend-agent-chat-spacing-{xs,sm,md,lg}
  *   Surfaces:  --frontend-agent-chat-{input-bg,message-bg,warning-bg,warning-text}
+ *   Status:    --frontend-agent-chat-{error-bg,error-border,error-detail-bg,error-text,
+ *              success-bg,success-border,success-text,accent-border,accent-soft-bg,muted-bg}
+ *              (chat 0.9–0.13: tool-card error states, artifact/generation status pills,
+ *              image thumbnails)
+ *
+ * Left to package defaults (non-branding/structural): --frontend-agent-chat-admin-bar-offset
+ * (self-managed from --wp-admin--admin-bar--height), --frontend-agent-chat-fab-offset
+ * (structural), --frontend-agent-chat-monospace-font-family (no EC mono var).
  *
  * @package ExtraChillRoadie
  * @since 0.6.0
@@ -57,4 +65,21 @@
 	--frontend-agent-chat-spacing-sm: var(--spacing-sm, 12px);
 	--frontend-agent-chat-spacing-md: var(--spacing-md, 16px);
 	--frontend-agent-chat-spacing-lg: var(--spacing-lg, 24px);
+
+	/* ── Status / tool-card surfaces (chat 0.9–0.13) ────── */
+	/* Tool-card error states, artifact/generation status pills, image
+	 * thumbnails. Map to EC brand error/success/accent so these newer
+	 * surfaces read on-brand instead of the package's slate/red/green
+	 * defaults. Soft backgrounds use --card-background (neutral, readable)
+	 * rather than colored tints to stay legible in EC light + dark modes. */
+	--frontend-agent-chat-error-bg: var(--card-background, #fef2f2);
+	--frontend-agent-chat-error-border: var(--error-color, #fecaca);
+	--frontend-agent-chat-error-detail-bg: var(--card-background, #fee2e2);
+	--frontend-agent-chat-error-text: var(--error-color, #b91c1c);
+	--frontend-agent-chat-accent-border: var(--accent, #93c5fd);
+	--frontend-agent-chat-accent-soft-bg: var(--card-background, #eff6ff);
+	--frontend-agent-chat-success-bg: var(--card-background, #f0fdf4);
+	--frontend-agent-chat-success-border: var(--success-color, #bbf7d0);
+	--frontend-agent-chat-success-text: var(--success-color, #15803d);
+	--frontend-agent-chat-muted-bg: var(--background-color, #f8f9fa);
 }
