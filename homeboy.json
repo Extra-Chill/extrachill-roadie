@@ -5,7 +5,7 @@
   "extensions": {
     "wordpress": {
       "settings": {
-        "test_backend": "host"
+				"test_backend": "host-smoke"
       }
     }
   },
