@@ -43,10 +43,11 @@ function extrachill_roadie_bridge_onboarding_config( array $config, string $agen
 	$config['display_name'] = EXTRACHILL_ROADIE_AGENT_NAME;
 
 	$config['description'] = 'Roadie is your personal assistant on Extra Chill. '
-		. 'Manage your artist profile, link page, community posts, and more — all through chat.';
+		. 'Manage your artist profile, link page, and community posts through chat. '
+		. 'Extra Chill team members can also file issues and propose code changes.';
 
 	$config['welcome_message'] = "Hey! I'm Roadie, your assistant on Extra Chill. "
-		. "I can help you manage your artist profile, update your link page, post in the community forums, and more.\n\n"
+		. "I can help you manage your artist profile, update your link page, and post in the community forums.\n\n"
 		. 'What would you like to do?';
 
 	$config['login_label'] = 'Sign in to Extra Chill';
@@ -58,13 +59,22 @@ function extrachill_roadie_bridge_onboarding_config( array $config, string $agen
 	$config['room_name']  = 'Roadie';
 	$config['room_topic'] = 'Extra Chill assistant — manage your profile, link page, and community.';
 
-	// Capabilities the user can use through chat.
+	// Capabilities the user can use through chat. Team-only capabilities
+	// (issue filing, code contribution) are gated server-side and only
+	// surface for extra_chill_team / admin callers, so they're listed
+	// separately rather than advertised to every onboarding user.
 	$config['capabilities'] = array(
 		'artist_profile' => 'Create and manage your artist profile',
 		'link_page'      => 'Update your link-in-bio page',
 		'user_profile'   => 'Edit your community profile',
 		'community'      => 'Browse forums, post topics, and reply',
 	);
+
+	// Team-tier capabilities (only usable by extra_chill_team / admins).
+	if ( function_exists( 'current_user_can' ) && current_user_can( 'extrachill_propose_code' ) ) {
+		$config['capabilities']['feature_request'] = 'File feature requests and bug reports as GitHub issues';
+		$config['capabilities']['code_contribution'] = 'Propose sandboxed code changes and open pull requests';
+	}
 
 	// Avatar: use the Roadie agent's avatar if available via DM, otherwise fall back to site icon.
 	$avatar_url = '';
