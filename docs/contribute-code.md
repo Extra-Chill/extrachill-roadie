@@ -17,6 +17,10 @@ The sandbox never touches GitHub, never touches production code, and never holds
 
 The structural human gate is: the LLM is told in `propose_code_change`'s description not to auto-call `apply_code_change` — it must wait for the user to approve. Capability check on both tools (`extrachill_propose_code`) is the second gate.
 
+### Implement now vs. track it
+
+`propose_code_change` is for **implementing** a change right now. When the user just wants to **track** something — a feature idea or bug report — the sibling `file_feature_request` tool files a GitHub issue instead (same `extrachill_propose_code` capability, same `repo-map.php` registry for resolving the target repo). The model is steered to pick `file_feature_request` for "open an issue / file an issue / report a bug" phrasing and `propose_code_change` when the user wants the change actually made. `file_feature_request` auto-infers the repo from the current subsite, so a team member chatting on `events.extrachill.com` can file against `Extra-Chill/extrachill-events` without naming it.
+
 ## Setup
 
 ### 1. Host prerequisites
@@ -94,7 +98,7 @@ add_filter( 'extrachill_roadie_inherit_connectors', function ( array $map ) {
 
 ### 5. Capabilities
 
-By default, administrators and editors get `extrachill_propose_code`. Override:
+By default, **administrators, editors, and the `extra_chill_team` role** get `extrachill_propose_code` (granted via the `user_has_cap` filter, so no DB writes on upgrade). `file_feature_request` gates on the same capability — if you can propose code, you can file issues. Override the role grant:
 
 ```php
 add_filter( 'extrachill_roadie_propose_code_roles', function ( array $roles ) {
@@ -102,9 +106,22 @@ add_filter( 'extrachill_roadie_propose_code_roles', function ( array $roles ) {
 } );
 ```
 
+Per-user grants work through the standard `user_has_cap` filter. There is no separate "approve" capability — chat approval happens through the same conversation surface.
+
 ### 6. Slug → repo map
 
-The recipe builder maps active components on the subsite to GitHub repos via the `extrachill_roadie_repo_map` filter. Defaults cover the Extra Chill theme + commonly active plugins. Add new entries:
+The slug→repo registry (`inc/contribute-code/repo-map.php`, filter `extrachill_roadie_repo_map`) is the **single allowlist shared by both** the code-contribution recipe builder and `file_feature_request`'s repo inference. Each entry carries a `kind`:
+
+| `kind` | Meaning | Mounted editable in sandbox? | Issue-trackable? |
+|---|---|---|---|
+| `theme` | `wp-content/themes/<slug>/` | Yes | Yes |
+| `plugin` | Subsite-specific plugin | Yes | Yes |
+| `platform-plugin` | Network-wide platform plugin (boilerplate from a subsite's POV) | No — excluded from subsite detection | Yes |
+| `agent-stack-plugin` | Read-only reference the sandboxed agent can grep | Read-only mount | Reference only |
+
+The default map ships ~26 entries: the `extrachill` theme, the subsite plugins (`extrachill-artist-platform`, `-community`, `-events`, `-shop`, `-blog`, `-contact`, `-content-blocks`, `-docs`, `-ai-adventure`), the network platform plugins (`extrachill-roadie`, `-users`, `-multisite`, `-api`, `-admin-tools`, `-newsletter`, `-search`, `-seo`, `-analytics`, `-cli`, `-tokens`, `-components`), and the agent stack (`agents-api`, `data-machine`, `data-machine-code`, `ai-provider-for-openai`, `ai-provider-for-anthropic` — the two WordPress providers track `trunk`).
+
+Add new entries:
 
 ```php
 add_filter( 'extrachill_roadie_repo_map', function ( array $map ) {
@@ -118,7 +135,11 @@ add_filter( 'extrachill_roadie_repo_map', function ( array $map ) {
 } );
 ```
 
-If a contributor describes a change to a plugin that isn't in the map, the recipe still ships but that plugin won't be mounted as editable. The response includes the unmapped slug in `unmapped_plugins` for operator visibility.
+Helpers over the registry:
+- `extrachill_roadie_repo_for_slug( $slug )` — thin slug → `owner/name` lookup (`''` if unknown). This is what `file_feature_request`'s `infer_repo_from_context()` consumes to auto-resolve the repo from the current subsite's active plugin (then theme) slug.
+- `extrachill_roadie_agent_stack_slugs()` — the read-only `agent-stack-plugin` slugs.
+
+If a contributor describes a change to a `plugin`/`theme` slug that isn't in the map, the recipe still ships but that plugin won't be mounted as editable. The response includes the unmapped slug in `unmapped_plugins` for operator visibility. `platform-plugin` and `agent-stack-plugin` entries are deliberately not auto-mounted editable on a subsite, but remain in the registry for issue-tracking and explicit-target flows.
 
 ## Architecture
 
@@ -210,7 +231,7 @@ echo wp_json_encode( $result, JSON_PRETTY_PRINT );'
 ## Operational notes
 
 - **Preview URL TTL:** controlled by `preview_hold_seconds` (default 900). Override via `extrachill_roadie_preview_hold_seconds` filter. Max 3600.
-- **Worktree convention:** apply-back creates worktrees as `<repo>@roadie-<slug>-<short-artifact-id>`. These are tracked in the DMC workspace registry and can be cleaned up via `wp datamachine-code workspace worktree mark-cleanup-eligible <handle>` after PR merge.
+- **Worktree convention:** apply-back pushes a `roadie/<slug>-<short12>` branch (12-char artifact-id prefix) and creates the worktree as `<repo>@roadie-<slug>-<short12>` (the DMC on-disk handle replaces `/` with `-`). These are tracked in the DMC workspace registry and can be cleaned up via `wp datamachine-code workspace worktree mark-cleanup-eligible <handle>` after PR merge.
 - **Commit identity:** all commits authored by `Extra Chill Bot <bot@extrachill.com>` (configured via `extrachill_roadie_apply_commit_name` / `extrachill_roadie_apply_commit_email` filters). The PR author on GitHub is whoever owns the resolved credential profile — when using the default `homeboy-ci` App profile, PRs are authored by `homeboy-ci[bot]`.
 - **No release / no deploy:** apply-back opens a PR; merge and release stay manual on GitHub. There is no path from chat to production deploy.
 
@@ -218,8 +239,7 @@ echo wp_json_encode( $result, JSON_PRETTY_PRINT );'
 
 | Issue | Status | What it gives us |
 |---|---|---|
-| [chubes4/wp-codebox#88](https://github.com/chubes4/wp-codebox/issues/88) | Partial (closed via #89) | Declarative inheritance contract for connectors/settings. The `inherit` block + `wp_codebox_resolve_inheritance` filter are live. |
-| [chubes4/wp-codebox#89](https://github.com/chubes4/wp-codebox/pull/89) | Merged | Transport foundation for #88. Provider/model/secret_env-names crossover via the filter. |
-| Remaining #88 scope | Open | Agent identity inheritance (custom SOUL/MEMORY for the sandbox agent) + filter-returned secret values (eliminating the putenv() bridge). |
+| [chubes4/wp-codebox#88](https://github.com/chubes4/wp-codebox/issues/88) | Closed | Declarative inheritance contract for connectors/settings. The `inherit` block + `wp_codebox_resolve_inheritance` filter are live. |
+| [chubes4/wp-codebox#89](https://github.com/chubes4/wp-codebox/pull/89) | Merged | Transport foundation for #88 — provider/model/secret_env-names crossover via the filter. |
 
-When the remaining #88 scope lands, the `inherit-resolver.php` bridge becomes obsolete: the filter will return values directly instead of `putenv()`ing them, and we can also pass an `inherit.agents` block to give the sandboxed agent a tailored persona.
+**Current bridge (still in place):** `inc/contribute-code/inherit-resolver.php` resolves the connector credential (default OpenAI, `gpt-5`) from the parent site's `connectors_*` option and `putenv()`s it as the `secret_env` var name (e.g. `OPENAI_API_KEY`) so the sandbox's `php-ai-client` picks it up via `getenv()`. Even though #88 is closed upstream, the `putenv()` bridge here has **not** yet been removed — if/when the inheritance contract grows to return secret values directly (and to accept an `inherit.agents` block for a tailored sandbox persona), this bridge becomes obsolete and should be deleted. Track that cleanup as roadie-side tech debt rather than assuming it already happened.
