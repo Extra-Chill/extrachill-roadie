@@ -70,9 +70,12 @@ function extrachill_roadie_bridge_onboarding_config( array $config, string $agen
 		'community'      => 'Browse forums, post topics, and reply',
 	);
 
-	// Team-tier capabilities (only usable by extra_chill_team / admins).
-	if ( function_exists( 'current_user_can' ) && current_user_can( 'extrachill_propose_code' ) ) {
-		$config['capabilities']['feature_request'] = 'File feature requests and bug reports as GitHub issues';
+	// Team-tier capabilities (only usable by extra_chill_team / admins). The
+	// capability is registered in inc/contribute-code/capabilities.php; use the
+	// constant when available so the check stays in sync with that definition.
+	$propose_code_cap = defined( 'EXTRACHILL_ROADIE_PROPOSE_CODE_CAP' ) ? EXTRACHILL_ROADIE_PROPOSE_CODE_CAP : 'extrachill_propose_code';
+	if ( function_exists( 'current_user_can' ) && current_user_can( $propose_code_cap ) ) {
+		$config['capabilities']['feature_request']   = 'File feature requests and bug reports as GitHub issues';
 		$config['capabilities']['code_contribution'] = 'Propose sandboxed code changes and open pull requests';
 	}
 
