@@ -2,6 +2,12 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.10.1] - 2026-06-01
+
+### Fixed
+- use propose-code cap constant in onboarding capability gate
+- infer GitHub repo from subsite context and steer issue requests to file_feature_request
+
 ## [0.10.0] - 2026-05-31
 
 ### Added
