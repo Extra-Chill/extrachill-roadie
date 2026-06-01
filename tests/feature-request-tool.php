@@ -119,7 +119,7 @@ $definition = $tool->getToolDefinition();
 roadie_test_assert( 'handle_tool_call' === $definition['method'], 'tool dispatch method' );
 $required = $definition['parameters']['required'] ?? array();
 roadie_test_assert( in_array( 'action', $required, true ), 'definition requires action' );
-roadie_test_assert( in_array( 'repo', $required, true ), 'definition requires repo' );
+roadie_test_assert( ! in_array( 'repo', $required, true ), 'definition makes repo optional (auto-inferred from context)' );
 
 $action_enum = $definition['parameters']['properties']['action']['enum'] ?? array();
 roadie_test_assert( in_array( 'file_issue', $action_enum, true ), 'action enum includes file_issue' );
@@ -144,8 +144,22 @@ $GLOBALS['extrachill_roadie_test_state']['user_caps'][ EXTRACHILL_ROADIE_PROPOSE
 $bad_action = $tool->handle_tool_call( array( 'action' => 'delete_universe', 'repo' => 'Extra-Chill/extrachill-roadie' ) );
 roadie_test_assert( false === $bad_action['success'], 'unknown action must be rejected' );
 
+// Missing repo + inference fails (unknown blog: no subsite-specific plugins,
+// theme slug not in the registry) must fall back to requiring an explicit repo.
+$GLOBALS['extrachill_roadie_test_state']['theme'] = (function () {
+	$theme             = new ECRoadie_TestTheme();
+	$theme->stylesheet = 'some-unregistered-theme';
+	return $theme;
+})();
+$GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array();
 $missing_repo = $tool->handle_tool_call( array( 'action' => 'file_issue', 'repo' => '', 'title' => 't', 'body' => 'b' ) );
-roadie_test_assert( false === $missing_repo['success'], 'missing repo must be rejected' );
+roadie_test_assert( false === $missing_repo['success'], 'missing repo with failed inference must be rejected' );
+roadie_test_assert(
+	false !== strpos( $missing_repo['error'] ?? '', 'repo is required' ),
+	'failed-inference fallback surfaces the standard repo-required error'
+);
+// Restore the default registered theme for the rest of the suite.
+$GLOBALS['extrachill_roadie_test_state']['theme'] = null;
 
 $bad_repo = $tool->handle_tool_call( array( 'action' => 'file_issue', 'repo' => 'evil-org/private-secrets', 'title' => 't', 'body' => 'b' ) );
 roadie_test_assert( false === $bad_repo['success'], 'unregistered repo must be rejected' );
@@ -300,6 +314,55 @@ roadie_test_assert(
 	false !== strpos( $call['input']['body'], 'extrachill.test' ),
 	'file_issue body attribution includes subsite URL'
 );
+
+// --- file_issue: repo auto-inferred from subsite context ---------------
+// Simulate a team member chatting from events.extrachill.com (blog 7) with
+// extrachill-events active. Omitting repo should infer Extra-Chill/extrachill-events
+// from the active subsite plugin via the slug-to-repo registry.
+$GLOBALS['extrachill_roadie_test_state']['current_blog']   = 7;
+$GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array( 'extrachill-events/extrachill-events.php' );
+$GLOBALS['extrachill_roadie_test_state']['ability_calls']  = array();
+
+$inferred = $tool->handle_tool_call( array(
+	'action' => 'file_issue',
+	'title'  => 'Calendar load-more frozen on June 9',
+	'body'   => 'The events calendar load-more button stops responding at June 9.',
+) );
+roadie_test_assert( true === $inferred['success'], 'file_issue succeeds with repo inferred from subsite context' );
+roadie_test_assert(
+	'Extra-Chill/extrachill-events' === ( $inferred['data']['repo'] ?? '' ),
+	'repo auto-infers to Extra-Chill/extrachill-events from the active subsite plugin'
+);
+roadie_test_assert(
+	true === ( $inferred['data']['repo_inferred'] ?? false ),
+	'success payload flags repo_inferred so the model confirms once instead of asking repeatedly'
+);
+$inferred_call = end( $GLOBALS['extrachill_roadie_test_state']['ability_calls'] );
+roadie_test_assert(
+	'Extra-Chill/extrachill-events' === ( $inferred_call['input']['repo'] ?? '' ),
+	'inferred repo is forwarded to the create-github-issue ability'
+);
+
+// Explicit repo still wins over inference, and is flagged as not inferred.
+$GLOBALS['extrachill_roadie_test_state']['ability_calls'] = array();
+$explicit = $tool->handle_tool_call( array(
+	'action' => 'file_issue',
+	'repo'   => 'Extra-Chill/extrachill-roadie',
+	'title'  => 'Explicit repo wins',
+	'body'   => 'Caller named the repo directly.',
+) );
+roadie_test_assert(
+	'Extra-Chill/extrachill-roadie' === ( $explicit['data']['repo'] ?? '' ),
+	'explicit repo param overrides subsite inference'
+);
+roadie_test_assert(
+	false === ( $explicit['data']['repo_inferred'] ?? true ),
+	'explicit repo is not flagged as inferred'
+);
+
+// Restore the default blog/plugins for any later assertions.
+$GLOBALS['extrachill_roadie_test_state']['current_blog']   = 1;
+$GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array();
 
 // --- list_recent_issues: PR filtering, normalization, defaults ---------
 
