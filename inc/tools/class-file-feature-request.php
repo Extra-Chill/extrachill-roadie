@@ -68,10 +68,10 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		return array(
 			'class'       => self::class,
 			'method'      => 'handle_tool_call',
-			'description' => 'When the user describes an idea, feature request, or bug observation that should be tracked (rather than implemented right now), use this tool to file or look up GitHub issues against the appropriate Extra Chill repo. Three actions are supported: action="file_issue" creates a new issue (requires repo, title, body); action="list_recent_issues" finds existing open issues to dedupe against (requires repo, optional labels/state); action="comment_on_issue" adds a comment to an existing issue (requires repo, issue_number, body). Before filing new issues, prefer calling list_recent_issues first with a few keywords from the proposed title to surface duplicates and ask the user whether to comment on an existing thread instead. Use propose_code_change instead when the user wants the change implemented, not just tracked.',
+			'description' => 'When the user wants to track something on GitHub — a feature request, a bug report, or any "open an issue on github" / "file an issue" / "report a bug" ask — use this tool to file or look up GitHub issues against the appropriate Extra Chill repo. This is ALWAYS the right tool for filing GitHub issues; never use create_taxonomy_term (which makes a category/tag term, not a GitHub issue) for issue/bug-report requests. Three actions are supported: action="file_issue" creates a new issue (requires title, body; repo is optional and auto-inferred from the current subsite when omitted); action="list_recent_issues" finds existing open issues to dedupe against (optional repo/labels/state); action="comment_on_issue" adds a comment to an existing issue (requires issue_number, body; repo optional). When the user is chatting from the subsite that owns the code, leave repo unset and it will be inferred from page context — do not interrogate the user for the repo. Before filing new issues, prefer calling list_recent_issues first with a few keywords from the proposed title to surface duplicates and ask the user whether to comment on an existing thread instead. Use propose_code_change instead when the user wants the change implemented, not just tracked.',
 			'parameters'  => array(
 				'type'       => 'object',
-				'required'   => array( 'action', 'repo' ),
+				'required'   => array( 'action' ),
 				'properties' => array(
 					'action'       => array(
 						'type'        => 'string',
@@ -80,7 +80,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 					),
 					'repo'         => array(
 						'type'        => 'string',
-						'description' => 'GitHub repo in owner/name form (e.g. Extra-Chill/extrachill-roadie). Must be present in the slug-to-repo registry; cross-org repos are rejected.',
+						'description' => 'GitHub repo in owner/name form (e.g. Extra-Chill/extrachill-roadie). Optional: when omitted, it is auto-inferred from the current subsite via the slug-to-repo registry. Must be present in the registry; cross-org repos are rejected.',
 					),
 					'title'        => array(
 						'type'        => 'string',
@@ -150,14 +150,28 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			);
 		}
 
-		// 3. Validate repo against the slug-to-repo registry.
-		$repo  = trim( (string) ( $parameters['repo'] ?? '' ) );
+		// 3. Resolve repo: prefer the explicit param, otherwise infer it from
+		// the current subsite's context so a team member chatting from
+		// e.g. events.extrachill.com doesn't have to name the repo.
+		$repo          = trim( (string) ( $parameters['repo'] ?? '' ) );
+		$repo_inferred = false;
+		if ( '' === $repo ) {
+			$inferred = $this->infer_repo_from_context();
+			if ( '' !== $inferred ) {
+				$repo          = $inferred;
+				$repo_inferred = true;
+			}
+		}
+
+		// 4. Validate repo against the slug-to-repo registry. Inference failure
+		// falls through to here, which returns the standard "repo is required"
+		// error so the model knows to supply one explicitly.
 		$check = $this->validate_repo( $repo );
 		if ( true !== $check ) {
 			return $check;
 		}
 
-		// 4. Verify abilities API + the specific ability we need.
+		// 5. Verify abilities API + the specific ability we need.
 		$ability_check = $this->require_ability( $this->ability_for_action( $action ) );
 		if ( true !== $ability_check ) {
 			return $ability_check;
@@ -165,11 +179,11 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 
 		switch ( $action ) {
 			case 'file_issue':
-				return $this->handle_file_issue( $parameters, $repo );
+				return $this->handle_file_issue( $parameters, $repo, $repo_inferred );
 			case 'list_recent_issues':
-				return $this->handle_list_recent_issues( $parameters, $repo );
+				return $this->handle_list_recent_issues( $parameters, $repo, $repo_inferred );
 			case 'comment_on_issue':
-				return $this->handle_comment_on_issue( $parameters, $repo );
+				return $this->handle_comment_on_issue( $parameters, $repo, $repo_inferred );
 		}
 
 		// Unreachable — action is validated above. Defensive default.
@@ -269,6 +283,60 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	}
 
 	/**
+	 * Infer the target repo from the current subsite's context.
+	 *
+	 * The tool runs in the subsite request context, so the current blog tells
+	 * us which subsite the user is chatting from. We resolve that blog to its
+	 * subsite-specific theme/plugin slugs via
+	 * `extrachill_roadie_detect_subsite_context()` and map the most
+	 * subsite-specific slug to its `owner/name` repo through the shared
+	 * slug-to-repo registry (`extrachill_roadie_repo_for_slug()`).
+	 *
+	 * Resolution priority:
+	 *   1. A subsite-specific active plugin slug present in the registry —
+	 *      this is the plugin that owns the subsite's behavior (e.g.
+	 *      `extrachill-events` on events.extrachill.com). The detector already
+	 *      excludes network-wide platform boilerplate, so the remaining
+	 *      plugins are genuinely subsite-specific.
+	 *   2. The active theme slug present in the registry — fallback for sites
+	 *      whose distinguishing surface is the theme rather than a plugin.
+	 *
+	 * Returns an empty string when no subsite slug maps to a registered repo,
+	 * which lets the caller fall back to requiring an explicit `repo`.
+	 *
+	 * @since 0.11.0
+	 *
+	 * @return string `owner/name` repo, or empty string when inference fails.
+	 */
+	protected function infer_repo_from_context(): string {
+		if ( ! function_exists( 'extrachill_roadie_detect_subsite_context' )
+			|| ! function_exists( 'extrachill_roadie_repo_for_slug' ) ) {
+			return '';
+		}
+
+		$blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		$context = extrachill_roadie_detect_subsite_context( $blog_id > 0 ? $blog_id : null );
+
+		// 1. Prefer a subsite-specific active plugin that maps to a repo.
+		foreach ( (array) ( $context['plugins'] ?? array() ) as $plugin ) {
+			$slug = (string) ( $plugin['slug'] ?? '' );
+			$repo = extrachill_roadie_repo_for_slug( $slug );
+			if ( '' !== $repo ) {
+				return $repo;
+			}
+		}
+
+		// 2. Fall back to the active theme slug.
+		$theme_slug = (string) ( $context['theme']['slug'] ?? '' );
+		$repo       = extrachill_roadie_repo_for_slug( $theme_slug );
+		if ( '' !== $repo ) {
+			return $repo;
+		}
+
+		return '';
+	}
+
+	/**
 	 * Confirm an ability is loaded and callable.
 	 *
 	 * @param string $ability_name Fully qualified ability name.
@@ -299,11 +367,12 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	/**
 	 * file_issue handler.
 	 *
-	 * @param array<string,mixed> $parameters Tool parameters.
-	 * @param string              $repo       Validated repo.
+	 * @param array<string,mixed> $parameters    Tool parameters.
+	 * @param string              $repo          Validated repo.
+	 * @param bool                $repo_inferred Whether $repo was inferred from context.
 	 * @return array<string,mixed>
 	 */
-	protected function handle_file_issue( array $parameters, string $repo ): array {
+	protected function handle_file_issue( array $parameters, string $repo, bool $repo_inferred = false ): array {
 		$title = trim( (string) ( $parameters['title'] ?? '' ) );
 		$body  = (string) ( $parameters['body'] ?? '' );
 
@@ -387,13 +456,14 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			'success'   => true,
 			'tool_name' => $this->tool_slug,
 			'data'      => array(
-				'action'       => 'file_issue',
-				'repo'         => $repo,
-				'issue_number' => $issue_number,
-				'issue_url'    => $issue_url,
-				'labels'       => $labels,
-				'next_step'    => 'If this issue describes a code change rather than just an idea to track, offer to call propose_code_change next so a sandbox can implement it.',
-				'raw'          => $result,
+				'action'        => 'file_issue',
+				'repo'          => $repo,
+				'repo_inferred' => $repo_inferred,
+				'issue_number'  => $issue_number,
+				'issue_url'     => $issue_url,
+				'labels'        => $labels,
+				'next_step'     => 'If this issue describes a code change rather than just an idea to track, offer to call propose_code_change next so a sandbox can implement it.',
+				'raw'           => $result,
 			),
 		);
 	}
@@ -401,11 +471,12 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	/**
 	 * list_recent_issues handler.
 	 *
-	 * @param array<string,mixed> $parameters Tool parameters.
-	 * @param string              $repo       Validated repo.
+	 * @param array<string,mixed> $parameters    Tool parameters.
+	 * @param string              $repo          Validated repo.
+	 * @param bool                $repo_inferred Whether $repo was inferred from context.
 	 * @return array<string,mixed>
 	 */
-	protected function handle_list_recent_issues( array $parameters, string $repo ): array {
+	protected function handle_list_recent_issues( array $parameters, string $repo, bool $repo_inferred = false ): array {
 		$state    = (string) ( $parameters['state'] ?? 'open' );
 		if ( ! in_array( $state, array( 'open', 'closed', 'all' ), true ) ) {
 			$state = 'open';
@@ -470,13 +541,14 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			'success'   => true,
 			'tool_name' => $this->tool_slug,
 			'data'      => array(
-				'action'    => 'list_recent_issues',
-				'repo'      => $repo,
-				'state'     => $state,
-				'keywords'  => $keywords,
-				'count'     => count( $issues ),
-				'issues'    => $issues,
-				'next_step' => 'Compare each issue title against the user\'s intent (and any keywords echoed above). If any look like the same idea, propose commenting on that existing issue with comment_on_issue. Otherwise proceed to file_issue.',
+				'action'        => 'list_recent_issues',
+				'repo'          => $repo,
+				'repo_inferred' => $repo_inferred,
+				'state'         => $state,
+				'keywords'      => $keywords,
+				'count'         => count( $issues ),
+				'issues'        => $issues,
+				'next_step'     => 'Compare each issue title against the user\'s intent (and any keywords echoed above). If any look like the same idea, propose commenting on that existing issue with comment_on_issue. Otherwise proceed to file_issue.',
 			),
 		);
 	}
@@ -484,11 +556,12 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	/**
 	 * comment_on_issue handler.
 	 *
-	 * @param array<string,mixed> $parameters Tool parameters.
-	 * @param string              $repo       Validated repo.
+	 * @param array<string,mixed> $parameters    Tool parameters.
+	 * @param string              $repo          Validated repo.
+	 * @param bool                $repo_inferred Whether $repo was inferred from context.
 	 * @return array<string,mixed>
 	 */
-	protected function handle_comment_on_issue( array $parameters, string $repo ): array {
+	protected function handle_comment_on_issue( array $parameters, string $repo, bool $repo_inferred = false ): array {
 		$issue_number = (int) ( $parameters['issue_number'] ?? 0 );
 		if ( $issue_number <= 0 ) {
 			return $this->buildErrorResponse(
@@ -546,11 +619,12 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			'success'   => true,
 			'tool_name' => $this->tool_slug,
 			'data'      => array(
-				'action'       => 'comment_on_issue',
-				'repo'         => $repo,
-				'issue_number' => $issue_number,
-				'comment_url'  => $comment_url,
-				'raw'          => $result,
+				'action'        => 'comment_on_issue',
+				'repo'          => $repo,
+				'repo_inferred' => $repo_inferred,
+				'issue_number'  => $issue_number,
+				'comment_url'   => $comment_url,
+				'raw'           => $result,
 			),
 		);
 	}

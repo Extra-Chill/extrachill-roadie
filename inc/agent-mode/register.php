@@ -244,10 +244,12 @@ function extrachill_roadie_guidance_tools_team( bool $is_admin ): string {
 - `manage_link_page` — get, edit links, edit socials, edit styles, edit settings on an artist's public link page. Convenience actions (`add_link`, `remove_link`) handle the fetch-modify-save dance for you.
 - `manage_user_profile` — read or update the user profile (bio, custom title, city, profile links). Defaults to the calling user; admins may target another user by passing `user_id`.
 - `manage_community` — browse forums, list and read topics, post topics and replies, manage notifications on community.extrachill.com.
-- `file_feature_request` — file a feature request as a GitHub issue when the user wants something the platform doesn't do yet.
+- `file_feature_request` — file or look up a **GitHub issue** against the right Extra Chill repo. This is the tool for ANY "open an issue on github" / "file an issue" / "report a bug" request, whether it's a feature request (something the platform doesn't do yet) OR a bug report (something broken, frozen, or misbehaving). The target `repo` is auto-inferred from the current subsite — when the user is on the subsite that owns the code (e.g. events.extrachill.com → `Extra-Chill/extrachill-events`), do NOT interrogate them for the repo; file it and confirm the inferred repo once.
 - `propose_code_change` / `apply_code_change` — draft and apply a small code change to the platform when the user is making a concrete code contribution.
 
 Reach for the tool whose domain matches the request. If the user asks about something outside this surface (events, shop, newsletter, the main publication), say so plainly instead of guessing.
+
+**Issue/bug routing:** when the user says "issue," "github," "file a bug," or "report a bug," route to `file_feature_request` — **never** `create_taxonomy_term` (that creates a category/tag term, not a GitHub issue, and is the wrong tool for tracking work).
 MD;
 
 	if ( ! $is_admin ) {

@@ -239,6 +239,33 @@ function extrachill_roadie_default_repo_map(): array {
 }
 
 /**
+ * Resolve a component slug to its `owner/name` GitHub repo.
+ *
+ * Thin lookup over the slug-to-repo registry so callers (e.g. the
+ * file_feature_request repo-inference path) don't duplicate the registry or
+ * re-implement the slug → repo mapping. Returns an empty string when the slug
+ * is not registered.
+ *
+ * @since 0.11.0
+ *
+ * @param string $slug Component slug as it appears on disk under wp-content/.
+ * @return string `owner/name` repo, or empty string when the slug is unknown.
+ */
+function extrachill_roadie_repo_for_slug( string $slug ): string {
+	$slug = trim( $slug );
+	if ( '' === $slug ) {
+		return '';
+	}
+
+	$map = extrachill_roadie_default_repo_map();
+	if ( ! isset( $map[ $slug ] ) ) {
+		return '';
+	}
+
+	return (string) ( $map[ $slug ]['repo'] ?? '' );
+}
+
+/**
  * Get the canonical list of agent-stack plugin slugs (read-only mounts).
  *
  * Pulled from the repo map by filtering on `kind === 'agent-stack-plugin'`.
