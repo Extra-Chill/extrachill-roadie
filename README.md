@@ -1,6 +1,6 @@
 # Extra Chill Roadie
 
-Extra Chill platform integration for [Frontend Agent Chat](https://github.com/Extra-Chill/frontend-agent-chat), powered by [Data Machine](https://github.com/Extra-Chill/data-machine) agents. Roadie gives the Extra Chill chat agent the ability to manage artist profiles, link pages, user profiles, and community forums — and, for team members, to file GitHub issues and ship sandboxed code changes — all through natural language chat.
+Extra Chill platform integration for [Frontend Agent Chat](https://github.com/Automattic/frontend-agent-chat), powered by [Data Machine](https://github.com/Extra-Chill/data-machine) agents. Roadie gives the Extra Chill chat agent the ability to manage artist profiles, link pages, user profiles, and community forums — and, for team members, to file GitHub issues and ship sandboxed code changes — all through natural language chat.
 
 ## What It Does
 
@@ -224,7 +224,7 @@ Full setup, security model, architecture diagram, and smoke test: **[docs/contri
 ## Dependencies
 
 - **[Data Machine](https://github.com/Extra-Chill/data-machine)** — Provides `BaseTool`, the `datamachine_tools` filter, the `AgentModeRegistry`, and the GitHub-issue abilities.
-- **[Frontend Agent Chat](https://github.com/Extra-Chill/frontend-agent-chat)** — The chat widget Roadie surfaces in; Roadie bridges its config + theme tokens.
+- **[Frontend Agent Chat](https://github.com/Automattic/frontend-agent-chat)** — The chat widget Roadie surfaces in; Roadie bridges its config + theme tokens.
 - **[Extra Chill Multisite](https://github.com/Extra-Chill/extrachill-multisite)** — Provides `ec_cross_site_rest_request()` for internal cross-site HTTP.
 - **[Extra Chill API](https://github.com/Extra-Chill/extrachill-api)** — REST endpoints and route affinity middleware.
 - **[Extra Chill Users](https://github.com/Extra-Chill/extrachill-users)** — User profile abilities, team membership, and the `access_roadie` capability.
