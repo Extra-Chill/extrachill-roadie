@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.11.0] - 2026-06-05
+
+### Added
+- register agent-stack components for the wp-codebox browser runtime
+
 ## [0.10.1] - 2026-06-01
 
 ### Fixed
