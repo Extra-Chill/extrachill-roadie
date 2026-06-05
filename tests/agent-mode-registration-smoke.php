@@ -52,12 +52,29 @@ function __( $text, $domain = null ): string {
 	return (string) $text;
 }
 
+// extrachill_roadie_user_tier() consults user_can() for non-zero callers. The
+// guidance assertions below exercise the team-tier path (the user-scoped
+// "user #<id>" identity line lives in the team/admin guidance), so grant the
+// test caller the team capability (access_roadie) while withholding admin. This
+// keeps the smoke free of a WordPress bootstrap.
+if ( ! function_exists( 'user_can' ) ) {
+	function user_can( $user, $capability, ...$args ): bool {
+		unset( $user, $args );
+		return 'access_roadie' === $capability;
+	}
+}
+
 function ec_roadie_smoke_assert( bool $condition, string $message ): void {
 	if ( ! $condition ) {
 		throw new RuntimeException( $message );
 	}
 }
 
+// permissions.php provides EXTRACHILL_ROADIE_TIER_* constants and
+// extrachill_roadie_user_tier(); register.php references them. With a 0
+// (no-human) caller, the tier resolver short-circuits to the public tier and
+// never touches WP capability functions, so loading it here is side-effect free.
+require_once dirname( __DIR__ ) . '/inc/permissions.php';
 require_once dirname( __DIR__ ) . '/inc/agent-mode/register.php';
 
 // Trigger the action so registration runs.
@@ -85,9 +102,11 @@ ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Calling-User Ident
 ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Editorial Voice' ), 'Guidance should document editorial voice.' );
 ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Operating Mode' ), 'Guidance should document operating mode (propose-then-act for writes).' );
 
-// Without a caller, guidance should explain that user-scoped writes have no default.
+// Without a caller (user_id 0), the tier resolver returns the public tier, so
+// guidance uses the visitor identity contract: no user context to act on, tools
+// kept read-only, and a sign-in nudge for anything that would change data.
 $guidance_no_caller = apply_filters( 'datamachine_agent_mode_roadie', '', array() );
-ec_roadie_smoke_assert( str_contains( $guidance_no_caller, 'no human caller' ), 'Guidance should explain the no-caller case for system tasks.' );
+ec_roadie_smoke_assert( str_contains( $guidance_no_caller, 'no user context to act on behalf of' ), 'No-caller guidance should use the visitor identity contract (no user context).' );
 
 // Filter should compose with prior content rather than replace it.
 $composed = apply_filters( 'datamachine_agent_mode_roadie', "# Existing\nPrior directive content.", array() );
