@@ -213,3 +213,71 @@ function extrachill_roadie_build_recipe( array $context, array $repo_map, array 
 	 */
 	return (array) apply_filters( 'extrachill_roadie_recipe', $recipe, $context, $repo_map, $args );
 }
+
+/*
+|--------------------------------------------------------------------------
+| WP Codebox browser-runtime agent stack registration
+|--------------------------------------------------------------------------
+| WP Codebox is a generic substrate — it does not (and must not) know which
+| downstream plugins make up an agent runtime, nor where to fetch them. The
+| integration layer owns those names. Roadie already bridges the Extra Chill
+| platform into wp-codebox (recipe builder, inheritance resolver), so it is the
+| correct place to declare the browser runtime's required components and their
+| release sources.
+|
+| These mirror the on-disk agent stack roadie mounts via
+| `wp_codebox_component_paths`; the registry below provides the release-zip
+| fallback wp-codebox uses when a component is not already present on disk.
+| Per chubes4/wp-codebox layer-purity issue #633.
+*/
+
+/**
+ * Declare which components the wp-codebox browser runtime must always install.
+ *
+ * @param array<int,string> $slugs Required component slugs.
+ * @return array<int,string>
+ */
+function extrachill_roadie_browser_runtime_required_components( array $slugs ): array {
+	foreach ( array( 'agents-api', 'data-machine', 'data-machine-code' ) as $required ) {
+		if ( ! in_array( $required, $slugs, true ) ) {
+			$slugs[] = $required;
+		}
+	}
+
+	return $slugs;
+}
+add_filter( 'wp_codebox_browser_runtime_required_components', 'extrachill_roadie_browser_runtime_required_components' );
+
+/**
+ * Provide release-zip sources for the agent-stack browser runtime components.
+ *
+ * Used by wp-codebox as the fallback install source when a required component
+ * is not already mounted from an on-disk path.
+ *
+ * @param array<string,array<string,mixed>> $registry Component registry.
+ * @return array<string,array<string,mixed>>
+ */
+function extrachill_roadie_browser_runtime_component_registry( array $registry ): array {
+	$defaults = array(
+		'agents-api'        => 'https://github.com/Automattic/agents-api/releases/latest/download/agents-api.zip',
+		'data-machine'      => 'https://github.com/Extra-Chill/data-machine/releases/latest/download/data-machine.zip',
+		'data-machine-code' => 'https://github.com/Extra-Chill/data-machine-code/releases/latest/download/data-machine-code.zip',
+	);
+
+	foreach ( $defaults as $slug => $url ) {
+		if ( isset( $registry[ $slug ] ) ) {
+			continue;
+		}
+
+		$registry[ $slug ] = array(
+			'resource'         => 'url',
+			'url'              => $url,
+			'targetFolderName' => $slug,
+			'activate'         => true,
+			'provenance'       => array( 'source' => 'extrachill-roadie-runtime-component-registry' ),
+		);
+	}
+
+	return $registry;
+}
+add_filter( 'wp_codebox_browser_runtime_component_registry', 'extrachill_roadie_browser_runtime_component_registry' );
