@@ -35,6 +35,7 @@ add_action(
 		require_once __DIR__ . '/class-manage-link-page.php';
 		require_once __DIR__ . '/class-manage-user-profile.php';
 		require_once __DIR__ . '/class-manage-community.php';
+		require_once __DIR__ . '/class-writing-assistant.php';
 		require_once __DIR__ . '/class-propose-code-change.php';
 		require_once __DIR__ . '/class-apply-code-change.php';
 		require_once __DIR__ . '/class-file-feature-request.php';
@@ -44,6 +45,7 @@ add_action(
 		new ECRoadie_ManageLinkPage();
 		new ECRoadie_ManageUserProfile();
 		new ECRoadie_ManageCommunity();
+		new ECRoadie_WritingAssistant();
 		new ECRoadie_ProposeCodeChange();
 		new ECRoadie_ApplyCodeChange();
 		new ECRoadie_FileFeatureRequest();
@@ -54,7 +56,7 @@ add_action(
 /**
  * The roadie platform management tools, by slug.
  *
- * These are the seven write-capable tools registered above. They are the set
+ * These are the write-capable tools registered above. They are the set
  * hidden from public-tier callers — a visitor with no team access cannot use
  * any of them, so offering them only produces dead options and permission-error
  * round-trips.
@@ -68,6 +70,7 @@ function extrachill_roadie_managed_tool_slugs(): array {
 		'manage_link_page',
 		'manage_user_profile',
 		'manage_community',
+		'writing_assistant',
 		'propose_code_change',
 		'apply_code_change',
 		'file_feature_request',
