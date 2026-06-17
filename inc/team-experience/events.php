@@ -33,6 +33,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/*
+ * Event-name contract (Extra-Chill/extrachill-users#129).
+ * -------------------------------------------------------
+ * The canonical Roadie event_type names are defined ONCE in
+ * extrachill-analytics (inc/core/event-types.php) as the
+ * `EC_ANALYTICS_EVENT_ROADIE_*` constants. extrachill-analytics owns the
+ * analytics substrate and the `extrachill/track-analytics-event` ability
+ * this helper already calls at runtime, and is network-active, so those
+ * constants are guaranteed present wherever Roadie emits — referencing
+ * them adds no new coupling. Roadie's emit sites reference the analytics
+ * constants directly (no local copies of the literal strings), so a
+ * rename happens in exactly one place across the whole network.
+ */
+
 /**
  * Emit a Roadie team-experience analytics event via the canonical ability.
  *
@@ -124,7 +138,7 @@ function extrachill_roadie_emit_session_started( $chat_input, $request, string $
 
 	$user_id = (int) get_current_user_id();
 
-	extrachill_roadie_emit_team_experience_event( 'roadie_session_started', $user_id );
+	extrachill_roadie_emit_team_experience_event( EC_ANALYTICS_EVENT_ROADIE_SESSION_STARTED, $user_id );
 
 	return $chat_input;
 }
@@ -168,6 +182,6 @@ function extrachill_roadie_emit_tool_invoked( $audit_context ): void {
 		$extra['result_status'] = (string) $audit_context['result_status'];
 	}
 
-	extrachill_roadie_emit_team_experience_event( 'roadie_tool_invoked', $user_id, $extra );
+	extrachill_roadie_emit_team_experience_event( EC_ANALYTICS_EVENT_ROADIE_TOOL_INVOKED, $user_id, $extra );
 }
 add_action( 'datamachine_tool_execution_audit', 'extrachill_roadie_emit_tool_invoked', 10, 1 );
