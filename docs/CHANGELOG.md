@@ -2,6 +2,14 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.13.0] - 2026-06-17
+
+### Added
+- instrument Roadie usage as team-experience analytics events
+
+### Changed
+- reference canonical analytics event-name constants (users#129)
+
 ## [0.12.0] - 2026-06-17
 
 ### Added
