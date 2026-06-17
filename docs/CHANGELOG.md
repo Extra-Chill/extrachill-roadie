@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.12.0] - 2026-06-17
+
+### Added
+- writing assistant tool for editing + submitting your own Studio draft
+
 ## [0.11.1] - 2026-06-16
 
 ### Changed
