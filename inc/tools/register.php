@@ -39,6 +39,7 @@ add_action(
 		require_once __DIR__ . '/class-propose-code-change.php';
 		require_once __DIR__ . '/class-apply-code-change.php';
 		require_once __DIR__ . '/class-file-feature-request.php';
+		require_once __DIR__ . '/class-inspect-code.php';
 		require_once __DIR__ . '/class-present-question.php';
 
 		new ECRoadie_ManageArtistProfile();
@@ -49,6 +50,7 @@ add_action(
 		new ECRoadie_ProposeCodeChange();
 		new ECRoadie_ApplyCodeChange();
 		new ECRoadie_FileFeatureRequest();
+		new ECRoadie_InspectCode();
 		new ECRoadie_PresentQuestion();
 	}
 );
@@ -56,12 +58,18 @@ add_action(
 /**
  * The roadie platform management tools, by slug.
  *
- * These are the write-capable tools registered above. They are the set
- * hidden from public-tier callers — a visitor with no team access cannot use
- * any of them, so offering them only produces dead options and permission-error
+ * These are the team-gated tools registered above. They are the set hidden
+ * from public-tier callers — a visitor with no team access cannot use any of
+ * them, so offering them only produces dead options and permission-error
  * round-trips.
  *
+ * Most are write-capable; `inspect_code` is read-only but still team-gated
+ * (it reads platform source to ground UI feedback), so it belongs here for
+ * the same visibility reason — a public visitor has no source to inspect and
+ * no team access to do it with.
+ *
  * @since 0.10.0
+ * @since 0.12.0 Added the read-only, team-gated `inspect_code` tool.
  * @return string[]
  */
 function extrachill_roadie_managed_tool_slugs(): array {
@@ -74,6 +82,7 @@ function extrachill_roadie_managed_tool_slugs(): array {
 		'propose_code_change',
 		'apply_code_change',
 		'file_feature_request',
+		'inspect_code',
 	);
 }
 

@@ -246,11 +246,14 @@ function extrachill_roadie_guidance_tools_team( bool $is_admin ): string {
 - `manage_community` — browse forums, list and read topics, post topics and replies, manage notifications on community.extrachill.com.
 - `writing_assistant` — help the writer work on their OWN blog draft on the MAIN site: `list_drafts` (their drafts), `get_draft` (read one + its `blog_id`), `submit_for_review` (draft → pending for the editors). Drafts live on extrachill.com (the main site), not on the subsite the chat is running on.
 - `file_feature_request` — file or look up a **GitHub issue** against the right Extra Chill repo. This is the tool for ANY "open an issue on github" / "file an issue" / "report a bug" request, whether it's a feature request (something the platform doesn't do yet) OR a bug report (something broken, frozen, or misbehaving). The target `repo` is auto-inferred from the current subsite — when the user is on the subsite that owns the code (e.g. events.extrachill.com → `Extra-Chill/extrachill-events`), do NOT interrogate them for the repo; file it and confirm the inferred repo once.
+- `inspect_code` — **read-only** source inspector for the current subsite's owning plugin/theme. Three actions: `grep` (search the component for a term), `list_tree` (browse its directory layout), `read_file` (read a located file, optionally a line range). This is how you GROUND page feedback in real source. It cannot write, edit, or propose — it only reads, and only inside the inferred component (never wp-config, secrets, or another site's files).
 - `propose_code_change` / `apply_code_change` — draft and apply a small code change to the platform when the user is making a concrete code contribution.
 
 Reach for the tool whose domain matches the request. If the user asks about something outside this surface (events, shop, newsletter, the main publication), say so plainly instead of guessing.
 
 **Issue/bug routing:** when the user says "issue," "github," "file a bug," or "report a bug," route to `file_feature_request` — **never** `create_taxonomy_term` (that creates a category/tag term, not a GitHub issue, and is the wrong tool for tracking work).
+
+**Ground page feedback before describing or filing it.** When a user gives page-specific UI/UX feedback ("the calendar map is too big," "move the tonight button," "the search bar should sit above the presets"), do NOT reconstruct the layout from their words plus guesses. Call `inspect_code` first — `grep` for a term they mentioned, then `read_file` the template/component it points at — so every claim about what's on the page comes from real source you have read. This is the read counterpart to the honesty rule above: you only get to assert specific UI structure ("X is above Y") once you've actually read it. Then describe it accurately, or file a grounded issue citing the real file.
 
 ## Helping a Writer With Their Draft
 
