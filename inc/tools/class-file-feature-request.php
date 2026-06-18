@@ -153,10 +153,12 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		// 3. Resolve repo: prefer the explicit param, otherwise infer it from
 		// the current subsite's context so a team member chatting from
 		// e.g. events.extrachill.com doesn't have to name the repo.
-		$repo          = trim( (string) ( $parameters['repo'] ?? '' ) );
-		$repo_inferred = false;
+		$repo            = trim( (string) ( $parameters['repo'] ?? '' ) );
+		$repo_inferred   = false;
+		$repo_candidates = array();
 		if ( '' === $repo ) {
-			$inferred = $this->infer_repo_from_context();
+			$repo_candidates = $this->candidate_repos_from_context();
+			$inferred        = $repo_candidates[0] ?? '';
 			if ( '' !== $inferred ) {
 				$repo          = $inferred;
 				$repo_inferred = true;
@@ -179,7 +181,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 
 		switch ( $action ) {
 			case 'file_issue':
-				return $this->handle_file_issue( $parameters, $repo, $repo_inferred );
+				return $this->handle_file_issue( $parameters, $repo, $repo_inferred, $repo_candidates );
 			case 'list_recent_issues':
 				return $this->handle_list_recent_issues( $parameters, $repo, $repo_inferred );
 			case 'comment_on_issue':
@@ -283,57 +285,80 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	}
 
 	/**
-	 * Infer the target repo from the current subsite's context.
+	 * Infer the single best target repo from the current subsite's context.
 	 *
-	 * The tool runs in the subsite request context, so the current blog tells
-	 * us which subsite the user is chatting from. We resolve that blog to its
-	 * subsite-specific theme/plugin slugs via
-	 * `extrachill_roadie_detect_subsite_context()` and map the most
-	 * subsite-specific slug to its `owner/name` repo through the shared
-	 * slug-to-repo registry (`extrachill_roadie_repo_for_slug()`).
-	 *
-	 * Resolution priority:
-	 *   1. A subsite-specific active plugin slug present in the registry —
-	 *      this is the plugin that owns the subsite's behavior (e.g.
-	 *      `extrachill-events` on events.extrachill.com). The detector already
-	 *      excludes network-wide platform boilerplate, so the remaining
-	 *      plugins are genuinely subsite-specific.
-	 *   2. The active theme slug present in the registry — fallback for sites
-	 *      whose distinguishing surface is the theme rather than a plugin.
-	 *
-	 * Returns an empty string when no subsite slug maps to a registered repo,
-	 * which lets the caller fall back to requiring an explicit `repo`.
+	 * Thin wrapper over `candidate_repos_from_context()`: returns the first
+	 * (highest-priority) candidate, preserving the original single-repo
+	 * contract for the file-issue routing path. Returns an empty string when
+	 * no subsite slug maps to a registered repo, which lets the caller fall
+	 * back to requiring an explicit `repo`.
 	 *
 	 * @since 0.11.0
 	 *
 	 * @return string `owner/name` repo, or empty string when inference fails.
 	 */
 	protected function infer_repo_from_context(): string {
+		$candidates = $this->candidate_repos_from_context();
+		return $candidates[0] ?? '';
+	}
+
+	/**
+	 * Resolve EVERY registered repo the current subsite maps to, in priority
+	 * order, driven entirely by the slug-to-repo registry.
+	 *
+	 * The events subsite is the motivating case: it runs BOTH
+	 * `extrachill-events` (venue/discovery/roundup) AND `data-machine-events`
+	 * (the front-end Calendar + EventsMap blocks) — so a single inferred repo
+	 * cannot represent "this site's code." This method surfaces all mapped
+	 * candidates so the caller can present them for disambiguation, while the
+	 * read-across-all-components grounding lives in inspect_code (which reads
+	 * every subsite-mapped component for the same reason).
+	 *
+	 * LAYER PURITY (RULES.md): selection is registry-driven. We never name a
+	 * plugin in code (no `if ( 'data-machine-events' === $slug )`). The order
+	 * comes from (a) the subsite-context detector's plugin order, then (b) the
+	 * active theme as a final fallback. Adding a plugin to the map + un-
+	 * excluding it from subsite-context detection is sufficient to make it a
+	 * candidate — no inference-code change required.
+	 *
+	 * @since 0.13.0
+	 *
+	 * @return string[] Ordered, de-duplicated `owner/name` repos. Empty when
+	 *                  no subsite slug maps to a registered repo.
+	 */
+	protected function candidate_repos_from_context(): array {
 		if ( ! function_exists( 'extrachill_roadie_detect_subsite_context' )
 			|| ! function_exists( 'extrachill_roadie_repo_for_slug' ) ) {
-			return '';
+			return array();
 		}
 
 		$blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
 		$context = extrachill_roadie_detect_subsite_context( $blog_id > 0 ? $blog_id : null );
 
-		// 1. Prefer a subsite-specific active plugin that maps to a repo.
+		$candidates = array();
+
+		// 1. Every subsite-specific active plugin that maps to a repo, in the
+		// detector's order. The detector already excludes network-wide
+		// platform boilerplate and agent infra, so the survivors are the
+		// genuinely subsite-owning, editable plugins (e.g. on the events site:
+		// extrachill-events AND data-machine-events).
 		foreach ( (array) ( $context['plugins'] ?? array() ) as $plugin ) {
 			$slug = (string) ( $plugin['slug'] ?? '' );
 			$repo = extrachill_roadie_repo_for_slug( $slug );
-			if ( '' !== $repo ) {
-				return $repo;
+			if ( '' !== $repo && ! in_array( $repo, $candidates, true ) ) {
+				$candidates[] = $repo;
 			}
 		}
 
-		// 2. Fall back to the active theme slug.
+		// 2. Fall back to the active theme slug for sites whose distinguishing
+		// surface is the theme rather than a plugin.
 		$theme_slug = (string) ( $context['theme']['slug'] ?? '' );
-		$repo       = extrachill_roadie_repo_for_slug( $theme_slug );
-		if ( '' !== $repo ) {
-			return $repo;
+		$theme_repo = extrachill_roadie_repo_for_slug( $theme_slug );
+		if ( '' !== $theme_repo && ! in_array( $theme_repo, $candidates, true ) ) {
+			$candidates[] = $theme_repo;
 		}
 
-		return '';
+		return $candidates;
 	}
 
 	/**
@@ -367,12 +392,13 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	/**
 	 * file_issue handler.
 	 *
-	 * @param array<string,mixed> $parameters    Tool parameters.
-	 * @param string              $repo          Validated repo.
-	 * @param bool                $repo_inferred Whether $repo was inferred from context.
+	 * @param array<string,mixed> $parameters      Tool parameters.
+	 * @param string              $repo            Validated repo.
+	 * @param bool                $repo_inferred   Whether $repo was inferred from context.
+	 * @param string[]            $repo_candidates All registered repos the subsite maps to (multi-plugin disambiguation).
 	 * @return array<string,mixed>
 	 */
-	protected function handle_file_issue( array $parameters, string $repo, bool $repo_inferred = false ): array {
+	protected function handle_file_issue( array $parameters, string $repo, bool $repo_inferred = false, array $repo_candidates = array() ): array {
 		$title = trim( (string) ( $parameters['title'] ?? '' ) );
 		$body  = (string) ( $parameters['body'] ?? '' );
 
@@ -452,19 +478,39 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		$issue_url    = (string) ( $result['html_url'] ?? $result['url'] ?? '' );
 		$issue_number = isset( $result['number'] ) ? (int) $result['number'] : 0;
 
+		$data = array(
+			'action'        => 'file_issue',
+			'repo'          => $repo,
+			'repo_inferred' => $repo_inferred,
+			'issue_number'  => $issue_number,
+			'issue_url'     => $issue_url,
+			'labels'        => $labels,
+			'next_step'     => 'If this issue describes a code change rather than just an idea to track, offer to call propose_code_change next so a sandbox can implement it.',
+			'raw'           => $result,
+		);
+
+		// When the repo was inferred on a multi-plugin subsite (e.g. the events
+		// site runs both extrachill-events and data-machine-events), surface
+		// the alternative candidates and a grounding hint so the model can
+		// confirm it filed against the right plugin. The right way to ground
+		// this is inspect_code: read the actual page source to learn whether
+		// the concern is a UI/calendar/map surface (data-machine-events) or a
+		// venue/discovery/data surface (extrachill-events) before filing.
+		if ( $repo_inferred && count( $repo_candidates ) > 1 ) {
+			$alternatives            = array_values( array_diff( $repo_candidates, array( $repo ) ) );
+			$data['repo_candidates'] = $repo_candidates;
+			$data['disambiguation']  = sprintf(
+				'This subsite maps to more than one repo (%s). The issue was filed against "%s". If this is a UI/layout/calendar/map concern it may belong to a different mapped plugin — use inspect_code to read the relevant page source and confirm the owning component, or re-file against one of: %s.',
+				implode( ', ', $repo_candidates ),
+				$repo,
+				implode( ', ', $alternatives )
+			);
+		}
+
 		return array(
 			'success'   => true,
 			'tool_name' => $this->tool_slug,
-			'data'      => array(
-				'action'        => 'file_issue',
-				'repo'          => $repo,
-				'repo_inferred' => $repo_inferred,
-				'issue_number'  => $issue_number,
-				'issue_url'     => $issue_url,
-				'labels'        => $labels,
-				'next_step'     => 'If this issue describes a code change rather than just an idea to track, offer to call propose_code_change next so a sandbox can implement it.',
-				'raw'           => $result,
-			),
+			'data'      => $data,
 		);
 	}
 
