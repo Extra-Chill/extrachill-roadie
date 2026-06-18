@@ -360,6 +360,72 @@ roadie_test_assert(
 	'explicit repo is not flagged as inferred'
 );
 
+// --- #57: data-machine-events is in the registry and file-able ----------
+// The events Calendar + EventsMap UI lives in data-machine-events, which was
+// previously absent from the repo map (and excluded from subsite-context), so
+// Roadie could neither file against nor read it. It must now resolve.
+roadie_test_assert(
+	'Extra-Chill/data-machine-events' === extrachill_roadie_repo_for_slug( 'data-machine-events' ),
+	'data-machine-events must resolve from the slug-to-repo registry (#57)'
+);
+roadie_test_assert(
+	'plugin' === ( extrachill_roadie_default_repo_map()['data-machine-events']['kind'] ?? '' ),
+	'data-machine-events is a front-end-rendering subsite plugin (kind=plugin), not agent-stack infra (#57)'
+);
+// data-machine-socials is in the registry too (file-able) but as platform-plugin
+// because it renders no front-end surface.
+roadie_test_assert(
+	'Extra-Chill/data-machine-socials' === extrachill_roadie_repo_for_slug( 'data-machine-socials' ),
+	'data-machine-socials must resolve from the registry so it is file-able (#57)'
+);
+roadie_test_assert(
+	'platform-plugin' === ( extrachill_roadie_default_repo_map()['data-machine-socials']['kind'] ?? '' ),
+	'data-machine-socials is backend platform infra (kind=platform-plugin), not a subsite editable surface (#57)'
+);
+
+// --- #57: multi-plugin events subsite surfaces disambiguation candidates -
+// The events site runs BOTH extrachill-events and data-machine-events. Filing
+// with an inferred repo must surface every mapped candidate plus a grounding
+// hint so the model can confirm it filed against the right plugin (and reach
+// for inspect_code to read the actual page source).
+$GLOBALS['extrachill_roadie_test_state']['current_blog']   = 7;
+$GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array(
+	'extrachill-events/extrachill-events.php',
+	'data-machine-events/data-machine-events.php',
+);
+$GLOBALS['extrachill_roadie_test_state']['ability_calls']  = array();
+
+$multi = $tool->handle_tool_call( array(
+	'action' => 'file_issue',
+	'title'  => 'The calendar map takes too much vertical space',
+	'body'   => 'On the events calendar the map block dominates the viewport above the listings.',
+) );
+roadie_test_assert( true === $multi['success'], 'file_issue succeeds on the multi-plugin events subsite (#57)' );
+roadie_test_assert(
+	true === ( $multi['data']['repo_inferred'] ?? false ),
+	'multi-plugin events subsite still flags repo_inferred (#57)'
+);
+$multi_candidates = $multi['data']['repo_candidates'] ?? array();
+roadie_test_assert(
+	in_array( 'Extra-Chill/extrachill-events', $multi_candidates, true ),
+	'multi-plugin candidates include extrachill-events (#57)'
+);
+roadie_test_assert(
+	in_array( 'Extra-Chill/data-machine-events', $multi_candidates, true ),
+	'multi-plugin candidates include data-machine-events — the calendar/map owner (#57)'
+);
+// Plugins rank ahead of the theme fallback: the two event plugins lead, the
+// active theme (also registered) trails as the final fallback candidate.
+roadie_test_assert(
+	array( 'Extra-Chill/extrachill-events', 'Extra-Chill/data-machine-events' )
+		=== array_slice( $multi_candidates, 0, 2 ),
+	'mapped subsite plugins lead the candidate list, in detector order (#57). Got: ' . implode( ',', $multi_candidates )
+);
+roadie_test_assert(
+	false !== strpos( $multi['data']['disambiguation'] ?? '', 'inspect_code' ),
+	'disambiguation hint points the model at inspect_code to ground the owning component (#57)'
+);
+
 // Restore the default blog/plugins for any later assertions.
 $GLOBALS['extrachill_roadie_test_state']['current_blog']   = 1;
 $GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array();

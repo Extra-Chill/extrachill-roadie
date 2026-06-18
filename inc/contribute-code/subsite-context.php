@@ -55,13 +55,22 @@ function extrachill_roadie_default_excluded_plugin_slugs(): array {
 		'gutenberg',
 		// The roadie plugin itself.
 		'extrachill-roadie',
-		// Data Machine + AI substrate.
+		// Data Machine + AI substrate (read-only agent infrastructure).
+		//
+		// NOTE: data-machine-events is deliberately NOT excluded. It is a
+		// front-end-rendering Data Machine EXTENSION (the events Calendar +
+		// EventsMap blocks) that the events subsite actively runs — a
+		// subsite-editable surface like extrachill-events, not agent infra.
+		// Excluding it is exactly the bug extrachill-roadie#57 fixed: it hid
+		// the calendar/map source from both repo inference and inspect_code.
+		// data-machine-socials stays excluded — it renders no front-end
+		// surface, so it's backend platform infra (mapped as platform-plugin
+		// in repo-map.php for issue-filing, but not a subsite editable surface).
 		'data-machine',
 		'data-machine-business',
 		'data-machine-chat-bridge',
 		'data-machine-code',
 		'data-machine-editor',
-		'data-machine-events',
 		'data-machine-skills',
 		'data-machine-socials',
 		'ai-provider-for-openai',

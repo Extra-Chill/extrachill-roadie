@@ -68,6 +68,18 @@ function extrachill_roadie_default_repo_map(): array {
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'plugin',
 		),
+		// Data Machine EXTENSION that renders front-end UI a subsite actively
+		// runs (the events Calendar + EventsMap blocks live entirely here). It
+		// is a subsite-editable surface exactly like extrachill-events — NOT
+		// read-only agent infrastructure. Classifying it `agent-stack-plugin`
+		// (the trap the other Data Machine plugins fall into) would make the
+		// calendar/map code Roadie can't reach. See extrachill-roadie#57.
+		'data-machine-events'        => array(
+			'repo'                        => 'Extra-Chill/data-machine-events',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'plugin',
+		),
 		'extrachill-shop'            => array(
 			'repo'                        => 'Extra-Chill/extrachill-shop',
 			'default_branch'              => 'main',
@@ -180,6 +192,18 @@ function extrachill_roadie_default_repo_map(): array {
 		),
 		'extrachill-components'      => array(
 			'repo'                        => 'Extra-Chill/extrachill-components',
+			'default_branch'              => 'main',
+			'repo_root_relative_to_mount' => '',
+			'kind'                        => 'platform-plugin',
+		),
+		// Data Machine social-publishing EXTENSION. Unlike data-machine-events
+		// it renders no front-end surface (it has no Blocks/ directory — only
+		// server-side image-generation templates), so it is a backend
+		// platform-plugin: in the registry so it's issue-trackable and
+		// file-able, but excluded from subsite-context detection so it never
+		// mounts as an editable surface. See extrachill-roadie#57.
+		'data-machine-socials'       => array(
+			'repo'                        => 'Extra-Chill/data-machine-socials',
 			'default_branch'              => 'main',
 			'repo_root_relative_to_mount' => '',
 			'kind'                        => 'platform-plugin',

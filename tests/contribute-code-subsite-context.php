@@ -71,6 +71,33 @@ roadie_test_assert(
 	'Filtered exclusion should drop extrachill-community. Got: ' . implode( ',', $slugs )
 );
 
+// --- Test 3b: events subsite exposes data-machine-events, hides socials ---
+// (#57) The events site runs both extrachill-events AND data-machine-events.
+// data-machine-events renders the Calendar + EventsMap UI, so it is a
+// subsite-editable surface and must NOT be excluded. data-machine-socials
+// renders no front-end and stays excluded.
+roadie_test_reset_filters();
+$GLOBALS['extrachill_roadie_test_state']['current_blog']   = 7;
+$GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array(
+	'extrachill-events/extrachill-events.php',
+	'data-machine-events/data-machine-events.php',
+	'data-machine-socials/data-machine-socials.php', // backend, excluded
+	'data-machine/data-machine.php',                 // agent infra, excluded
+);
+
+$context = extrachill_roadie_detect_subsite_context();
+$slugs   = array_map( fn( $p ) => $p['slug'], $context['plugins'] );
+sort( $slugs );
+roadie_test_assert(
+	$slugs === array( 'data-machine-events', 'extrachill-events' ),
+	'events subsite must expose extrachill-events + data-machine-events (and exclude socials + agent infra). Got: ' . implode( ',', $slugs )
+);
+roadie_test_assert(
+	! in_array( 'data-machine-socials', $slugs, true ),
+	'data-machine-socials must stay excluded from subsite-context (backend, no front-end surface) (#57)'
+);
+roadie_test_reset_filters();
+
 // --- Test 4: single-file plugin slug extraction ---------------------------
 roadie_test_reset_filters();
 roadie_test_assert(
