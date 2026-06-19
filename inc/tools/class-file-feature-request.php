@@ -176,9 +176,16 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			// via client_context_bindings) is the disambiguating signal for
 			// repo inference on the multi-repo main site. Caller-supplied repo
 			// still wins (handled by the '' === $repo guard above).
+			//
+			// Inference picks the single best repo from the FULL candidate set
+			// (plugins first, then the active-theme fallback) so theme-only
+			// subsites still resolve. The DISAMBIGUATION decision, however, is
+			// driven by the PLUGIN-only candidate set: real ambiguity is more
+			// than one editable plugin owning the concern, not a plugin shadowed
+			// by the shared theme fallback.
 			$page_url        = trim( (string) ( $parameters['page_url'] ?? '' ) );
-			$repo_candidates = $this->candidate_repos_from_context( $page_url );
-			$inferred        = $repo_candidates[0] ?? '';
+			$inferred        = $this->infer_repo_from_context( $page_url );
+			$repo_candidates = $this->plugin_candidate_repos_from_context( $page_url );
 			if ( '' !== $inferred ) {
 				$repo          = $inferred;
 				$repo_inferred = true;
@@ -362,28 +369,62 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	 *                  no subsite slug maps to a registered repo.
 	 */
 	protected function candidate_repos_from_context( string $page_url = '' ): array {
+		$candidates = $this->plugin_candidate_repos_from_context( $page_url );
+
+		// Fall back to the active theme slug for sites whose distinguishing
+		// surface is the theme rather than a plugin. The theme is a FALLBACK,
+		// not a peer of the subsite plugins — see plugin_candidate_repos_from_context()
+		// for why disambiguation is gated on plugin candidates only.
+		if ( ! function_exists( 'extrachill_roadie_detect_subsite_context' )
+			|| ! function_exists( 'extrachill_roadie_repo_for_slug' ) ) {
+			return $candidates;
+		}
+
+		$context    = extrachill_roadie_detect_subsite_context( $this->resolve_context_blog_id( $page_url ) );
+		$theme_slug = (string) ( $context['theme']['slug'] ?? '' );
+		$theme_repo = extrachill_roadie_repo_for_slug( $theme_slug );
+		if ( '' !== $theme_repo && ! in_array( $theme_repo, $candidates, true ) ) {
+			$candidates[] = $theme_repo;
+		}
+
+		return $candidates;
+	}
+
+	/**
+	 * Resolve only the PLUGIN-derived candidate repos for the current subsite,
+	 * in detector order — excluding the active-theme fallback.
+	 *
+	 * This is the set that governs genuine multi-component AMBIGUITY. Almost
+	 * every subsite also maps an active theme (e.g. the shared `extrachill`
+	 * theme), so counting the theme as a peer would make nearly every inferred
+	 * file_issue look "ambiguous" and trip disambiguation spuriously. Real
+	 * ambiguity is "this subsite runs more than one editable PLUGIN that could
+	 * own the concern" (the events site: extrachill-events + data-machine-events).
+	 *
+	 * Honours the same page_url → blog resolution as candidate_repos_from_context()
+	 * so the plugin candidate set reflects the subsite the user had open, not
+	 * just the blog the chat turn executes on.
+	 *
+	 * LAYER PURITY (RULES.md): registry-driven; no plugin name appears here.
+	 *
+	 * @since 0.14.0
+	 * @since 0.15.0 Accepts $page_url to prefer the viewed subsite.
+	 *
+	 * @param string $page_url Optional front-end URL the user was viewing.
+	 * @return string[] Ordered, de-duplicated `owner/name` repos from active
+	 *                  subsite plugins. Empty when none map to a registered repo.
+	 */
+	protected function plugin_candidate_repos_from_context( string $page_url = '' ): array {
 		if ( ! function_exists( 'extrachill_roadie_detect_subsite_context' )
 			|| ! function_exists( 'extrachill_roadie_repo_for_slug' ) ) {
 			return array();
 		}
 
-		$blog_id = 0;
-
-		// Prefer the subsite that owns the page the user actually had open.
-		if ( '' !== $page_url && function_exists( 'extrachill_roadie_blog_id_from_page_url' ) ) {
-			$blog_id = extrachill_roadie_blog_id_from_page_url( $page_url );
-		}
-
-		// Fall back to the blog the chat turn is executing on.
-		if ( $blog_id <= 0 ) {
-			$blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
-		}
-
-		$context = extrachill_roadie_detect_subsite_context( $blog_id > 0 ? $blog_id : null );
+		$context = extrachill_roadie_detect_subsite_context( $this->resolve_context_blog_id( $page_url ) );
 
 		$candidates = array();
 
-		// 1. Every subsite-specific active plugin that maps to a repo, in the
+		// Every subsite-specific active plugin that maps to a repo, in the
 		// detector's order. The detector already excludes network-wide
 		// platform boilerplate and agent infra, so the survivors are the
 		// genuinely subsite-owning, editable plugins (e.g. on the events site:
@@ -396,15 +437,36 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			}
 		}
 
-		// 2. Fall back to the active theme slug for sites whose distinguishing
-		// surface is the theme rather than a plugin.
-		$theme_slug = (string) ( $context['theme']['slug'] ?? '' );
-		$theme_repo = extrachill_roadie_repo_for_slug( $theme_slug );
-		if ( '' !== $theme_repo && ! in_array( $theme_repo, $candidates, true ) ) {
-			$candidates[] = $theme_repo;
+		return $candidates;
+	}
+
+	/**
+	 * Resolve the blog id whose subsite context should drive repo inference.
+	 *
+	 * Prefers the subsite that owns the page the user actually had open
+	 * (page_url → blog id, pure network topology), falling back to the blog the
+	 * chat turn is executing on. The chat widget POSTs to a single REST
+	 * endpoint, so a team member viewing events.extrachill.com while the turn
+	 * runs on blog 1 would otherwise get blog-1 candidates — the exact
+	 * ambiguity that forced Roadie to ASK which repo.
+	 *
+	 * @since 0.15.0
+	 *
+	 * @param string $page_url Optional front-end URL the user was viewing.
+	 * @return int|null Blog id to detect, or null to let the detector default.
+	 */
+	protected function resolve_context_blog_id( string $page_url = '' ): ?int {
+		$blog_id = 0;
+
+		if ( '' !== $page_url && function_exists( 'extrachill_roadie_blog_id_from_page_url' ) ) {
+			$blog_id = (int) extrachill_roadie_blog_id_from_page_url( $page_url );
 		}
 
-		return $candidates;
+		if ( $blog_id <= 0 ) {
+			$blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		}
+
+		return $blog_id > 0 ? $blog_id : null;
 	}
 
 	/**
@@ -460,6 +522,22 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 				'body is required for action=file_issue. Include enough context that the issue is actionable without the original chat.',
 				$this->tool_slug
 			);
+		}
+
+		// Multi-plugin disambiguation, BEFORE filing. When the repo was
+		// inferred (not explicitly supplied) and the subsite maps to more than
+		// one editable repo, we can't know which component owns the concern.
+		// Rather than file against a guess and then emit a prose "you may have
+		// picked wrong" hint (the old post-file behaviour), surface the repo
+		// choice as structured choices the QuestionCard renders. The user picks
+		// the owning repo (or types a free-text answer), and the next turn
+		// re-calls file_issue with an explicit `repo`, which skips this branch
+		// entirely (explicit repo => not inferred).
+		//
+		// LAYER PURITY (RULES.md): candidates come from the registry-driven
+		// candidate_repos_from_context(); no plugin name is hardcoded here.
+		if ( $repo_inferred && count( $repo_candidates ) > 1 ) {
+			return $this->repo_disambiguation_choices( $parameters, $repo_candidates );
 		}
 
 		// Merge caller-supplied labels with the defaults. Defaults always win
@@ -535,28 +613,77 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			'raw'           => $result,
 		);
 
-		// When the repo was inferred on a multi-plugin subsite (e.g. the events
-		// site runs both extrachill-events and data-machine-events), surface
-		// the alternative candidates and a grounding hint so the model can
-		// confirm it filed against the right plugin. The right way to ground
-		// this is inspect_code: read the actual page source to learn whether
-		// the concern is a UI/calendar/map surface (data-machine-events) or a
-		// venue/discovery/data surface (extrachill-events) before filing.
-		if ( $repo_inferred && count( $repo_candidates ) > 1 ) {
-			$alternatives            = array_values( array_diff( $repo_candidates, array( $repo ) ) );
-			$data['repo_candidates'] = $repo_candidates;
-			$data['disambiguation']  = sprintf(
-				'This subsite maps to more than one repo (%s). The issue was filed against "%s". If this is a UI/layout/calendar/map concern it may belong to a different mapped plugin — use inspect_code to read the relevant page source and confirm the owning component, or re-file against one of: %s.',
-				implode( ', ', $repo_candidates ),
-				$repo,
-				implode( ', ', $alternatives )
-			);
-		}
-
 		return array(
 			'success'   => true,
 			'tool_name' => $this->tool_slug,
 			'data'      => $data,
+		);
+	}
+
+	/**
+	 * Build a structured repo-disambiguation choice payload.
+	 *
+	 * Returned BEFORE filing when the repo was inferred on a multi-plugin
+	 * subsite. The result carries `question` + `choices` under the same `data`
+	 * key the rest of this tool uses, so the chat package's QuestionCard
+	 * renderer (parseQuestionPayloadFromToolGroup, which unwraps `result.data`)
+	 * picks it up deterministically — no model decision to call
+	 * present_question required.
+	 *
+	 * Each choice's `message` is phrased as the USER speaking: it becomes the
+	 * next turn when clicked, instructing the agent to re-file against the
+	 * chosen repo (now explicit, so the disambiguation branch is skipped). The
+	 * chat input always stays live (allow_freeform defaults true), so the user
+	 * can type "none of those" or describe the surface instead.
+	 *
+	 * LAYER PURITY (RULES.md): the candidate set is the registry-driven
+	 * $repo_candidates; no plugin name is named in this method.
+	 *
+	 * @since 0.14.0
+	 *
+	 * @param array<string,mixed> $parameters      Original tool parameters (title carried through for the reply message).
+	 * @param string[]            $repo_candidates Registry-ordered candidate repos for this subsite.
+	 * @return array<string,mixed>
+	 */
+	protected function repo_disambiguation_choices( array $parameters, array $repo_candidates ): array {
+		$title = trim( (string) ( $parameters['title'] ?? '' ) );
+
+		$choices = array();
+		foreach ( $repo_candidates as $candidate ) {
+			$candidate = (string) $candidate;
+			if ( '' === $candidate ) {
+				continue;
+			}
+			// Use just the repo name (after the owner/) for the button label
+			// to keep it short; the full owner/name goes in the reply message
+			// so the next file_issue call gets an unambiguous explicit repo.
+			$short = $candidate;
+			$slash = strrpos( $candidate, '/' );
+			if ( false !== $slash ) {
+				$short = substr( $candidate, $slash + 1 );
+			}
+
+			$choices[] = array(
+				'label'   => $short,
+				'message' => sprintf( 'File it against %s.', $candidate ),
+			);
+		}
+
+		$question = '' !== $title
+			? sprintf( 'This site maps to more than one component. Which repo should "%s" be filed against?', $title )
+			: 'This site maps to more than one component. Which repo should this issue be filed against?';
+
+		return array(
+			'success'   => true,
+			'tool_name' => $this->tool_slug,
+			'data'      => array(
+				'action'          => 'file_issue',
+				'status'          => 'awaiting_repo_choice',
+				'repo_candidates' => $repo_candidates,
+				'question'        => $question,
+				'choices'         => $choices,
+				'next_step'       => 'The issue was NOT filed yet — this subsite owns more than one editable component. Ask the user which repo owns this concern (the choices above render as clickable buttons), or, if you can ground it yourself, call inspect_code to read the relevant page source and confirm the owning component, then re-call file_issue with an explicit repo.',
+			),
 		);
 	}
 
@@ -629,20 +756,96 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 
 		$keywords = trim( (string) ( $parameters['keywords'] ?? '' ) );
 
+		$data = array(
+			'action'        => 'list_recent_issues',
+			'repo'          => $repo,
+			'repo_inferred' => $repo_inferred,
+			'state'         => $state,
+			'keywords'      => $keywords,
+			'count'         => count( $issues ),
+			'issues'        => $issues,
+			'next_step'     => 'Compare each issue title against the user\'s intent (and any keywords echoed above). If any look like the same idea, propose commenting on that existing issue with comment_on_issue. Otherwise proceed to file_issue.',
+		);
+
+		// When there are candidate duplicates, ALSO surface them as structured
+		// choices so the QuestionCard renders deterministically — one
+		// "comment on #N" choice per existing issue plus a "file a new issue
+		// instead" escape. The raw `issues` array above is kept intact because
+		// the model still reasons over it; the structured choices are purely
+		// additive. The chat input stays live (allow_freeform defaults true),
+		// so the user can type a free-form answer instead of clicking.
+		$dedupe_choices = $this->dedupe_choices( $repo, $issues );
+		if ( array() !== $dedupe_choices ) {
+			$data['question'] = '' !== $keywords
+				? sprintf( 'I found some existing issues that might already cover "%s". Want me to add to one of them, or file a new issue?', $keywords )
+				: 'I found some existing issues that might already cover this. Want me to add to one of them, or file a new issue?';
+			$data['choices']  = $dedupe_choices;
+		}
+
 		return array(
 			'success'   => true,
 			'tool_name' => $this->tool_slug,
-			'data'      => array(
-				'action'        => 'list_recent_issues',
-				'repo'          => $repo,
-				'repo_inferred' => $repo_inferred,
-				'state'         => $state,
-				'keywords'      => $keywords,
-				'count'         => count( $issues ),
-				'issues'        => $issues,
-				'next_step'     => 'Compare each issue title against the user\'s intent (and any keywords echoed above). If any look like the same idea, propose commenting on that existing issue with comment_on_issue. Otherwise proceed to file_issue.',
-			),
+			'data'      => $data,
 		);
+	}
+
+	/**
+	 * Build structured dedupe choices from a normalized issue list.
+	 *
+	 * One choice per existing issue ("Comment on #N: <title>") plus a trailing
+	 * "File a new issue instead" escape. Each choice's `message` is phrased as
+	 * the USER speaking so it becomes the next turn when clicked: clicking a
+	 * "comment" choice steers the agent toward comment_on_issue against that
+	 * number; clicking the escape steers it toward file_issue. The chat input
+	 * remains the universal override (allow_freeform defaults true).
+	 *
+	 * Returns an empty array when there are no candidate issues, so the caller
+	 * only attaches the question/choices when a real bounded set exists.
+	 *
+	 * @since 0.14.0
+	 *
+	 * @param string                         $repo   Validated repo (for an unambiguous reply message).
+	 * @param array<int,array<string,mixed>> $issues Normalized issue list.
+	 * @return array<int,array<string,string>>
+	 */
+	protected function dedupe_choices( string $repo, array $issues ): array {
+		if ( array() === $issues ) {
+			return array();
+		}
+
+		$choices = array();
+		foreach ( $issues as $issue ) {
+			$number = (int) ( $issue['number'] ?? 0 );
+			if ( $number <= 0 ) {
+				continue;
+			}
+			$title = trim( (string) ( $issue['title'] ?? '' ) );
+
+			$label = '' !== $title
+				? sprintf( 'Comment on #%d: %s', $number, $title )
+				: sprintf( 'Comment on #%d', $number );
+
+			$message = '' !== $title
+				? sprintf( "That's the same as #%d (\"%s\") in %s — add my note as a comment there instead of filing a new issue.", $number, $title, $repo )
+				: sprintf( "That's the same as #%d in %s — add my note as a comment there instead of filing a new issue.", $number, $repo );
+
+			$choices[] = array(
+				'label'   => $label,
+				'message' => $message,
+			);
+		}
+
+		if ( array() === $choices ) {
+			return array();
+		}
+
+		// Trailing escape: none of the existing issues match — file fresh.
+		$choices[] = array(
+			'label'   => 'File a new issue instead',
+			'message' => 'None of those match — go ahead and file a new issue.',
+		);
+
+		return $choices;
 	}
 
 	/**

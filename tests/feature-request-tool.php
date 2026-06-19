@@ -383,11 +383,12 @@ roadie_test_assert(
 	'data-machine-socials is backend platform infra (kind=platform-plugin), not a subsite editable surface (#57)'
 );
 
-// --- #57: multi-plugin events subsite surfaces disambiguation candidates -
-// The events site runs BOTH extrachill-events and data-machine-events. Filing
-// with an inferred repo must surface every mapped candidate plus a grounding
-// hint so the model can confirm it filed against the right plugin (and reach
-// for inspect_code to read the actual page source).
+// --- #57 / #61: multi-plugin subsite surfaces STRUCTURED repo choices BEFORE
+// filing. The events site runs BOTH extrachill-events and data-machine-events.
+// With an inferred repo and >1 PLUGIN candidate, the handler must NOT file
+// blindly — it returns a {question, choices} payload (rendered as a clickable
+// QuestionCard) so the user picks the owning repo, and the next turn re-files
+// with an explicit repo. The chat box remains the freeform escape hatch.
 $GLOBALS['extrachill_roadie_test_state']['current_blog']   = 7;
 $GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array(
 	'extrachill-events/extrachill-events.php',
@@ -400,30 +401,67 @@ $multi = $tool->handle_tool_call( array(
 	'title'  => 'The calendar map takes too much vertical space',
 	'body'   => 'On the events calendar the map block dominates the viewport above the listings.',
 ) );
-roadie_test_assert( true === $multi['success'], 'file_issue succeeds on the multi-plugin events subsite (#57)' );
+roadie_test_assert( true === $multi['success'], 'multi-plugin disambiguation returns a successful (non-error) payload (#61)' );
+// CRITICAL: the issue must NOT have been filed — no create-github-issue call.
 roadie_test_assert(
-	true === ( $multi['data']['repo_inferred'] ?? false ),
-	'multi-plugin events subsite still flags repo_inferred (#57)'
-);
-$multi_candidates = $multi['data']['repo_candidates'] ?? array();
-roadie_test_assert(
-	in_array( 'Extra-Chill/extrachill-events', $multi_candidates, true ),
-	'multi-plugin candidates include extrachill-events (#57)'
+	array() === $GLOBALS['extrachill_roadie_test_state']['ability_calls'],
+	'multi-plugin disambiguation does NOT file the issue before the user picks a repo (#61)'
 );
 roadie_test_assert(
-	in_array( 'Extra-Chill/data-machine-events', $multi_candidates, true ),
-	'multi-plugin candidates include data-machine-events — the calendar/map owner (#57)'
+	'awaiting_repo_choice' === ( $multi['data']['status'] ?? '' ),
+	'multi-plugin payload flags awaiting_repo_choice (#61)'
 );
-// Plugins rank ahead of the theme fallback: the two event plugins lead, the
-// active theme (also registered) trails as the final fallback candidate.
+// Structured question/choices live under data so the chat parser
+// (resultSourceFromToolGroup unwraps result.data) renders the QuestionCard.
 roadie_test_assert(
-	array( 'Extra-Chill/extrachill-events', 'Extra-Chill/data-machine-events' )
-		=== array_slice( $multi_candidates, 0, 2 ),
-	'mapped subsite plugins lead the candidate list, in detector order (#57). Got: ' . implode( ',', $multi_candidates )
+	is_string( $multi['data']['question'] ?? null ) && '' !== $multi['data']['question'],
+	'multi-plugin payload carries a non-empty question string (#61)'
+);
+$multi_choices = $multi['data']['choices'] ?? array();
+roadie_test_assert( is_array( $multi_choices ) && count( $multi_choices ) >= 2, 'multi-plugin payload carries >=2 choices (#61)' );
+// Each choice matches the chat package contract: {label, message}.
+$choice_messages = array();
+foreach ( $multi_choices as $choice ) {
+	roadie_test_assert(
+		is_array( $choice ) && '' !== ( $choice['label'] ?? '' ) && '' !== ( $choice['message'] ?? '' ),
+		'each repo choice has a non-empty label + message (#61)'
+	);
+	$choice_messages[] = $choice['message'];
+}
+// The reply messages must carry the full owner/name repo so the next
+// file_issue gets an explicit, unambiguous repo (skipping disambiguation).
+roadie_test_assert(
+	false !== strpos( implode( "\n", $choice_messages ), 'Extra-Chill/extrachill-events' ),
+	'a choice message names Extra-Chill/extrachill-events for explicit re-file (#61)'
 );
 roadie_test_assert(
-	false !== strpos( $multi['data']['disambiguation'] ?? '', 'inspect_code' ),
-	'disambiguation hint points the model at inspect_code to ground the owning component (#57)'
+	false !== strpos( implode( "\n", $choice_messages ), 'Extra-Chill/data-machine-events' ),
+	'a choice message names Extra-Chill/data-machine-events for explicit re-file (#61)'
+);
+// The plugin candidates lead the choice set in detector order (theme fallback
+// is NOT offered as a peer choice).
+roadie_test_assert(
+	in_array( 'Extra-Chill/extrachill-events', $multi['data']['repo_candidates'] ?? array(), true )
+		&& in_array( 'Extra-Chill/data-machine-events', $multi['data']['repo_candidates'] ?? array(), true ),
+	'repo_candidates lists both event plugins (#61)'
+);
+
+// An EXPLICIT repo on the same multi-plugin subsite skips disambiguation and
+// files directly (explicit repo => not inferred => no choice card).
+$GLOBALS['extrachill_roadie_test_state']['ability_calls'] = array();
+$multi_explicit = $tool->handle_tool_call( array(
+	'action' => 'file_issue',
+	'repo'   => 'Extra-Chill/data-machine-events',
+	'title'  => 'The calendar map takes too much vertical space',
+	'body'   => 'On the events calendar the map block dominates the viewport above the listings.',
+) );
+roadie_test_assert(
+	'' === ( $multi_explicit['data']['status'] ?? '' ),
+	'explicit repo on multi-plugin subsite skips disambiguation (#61)'
+);
+roadie_test_assert(
+	1 === count( $GLOBALS['extrachill_roadie_test_state']['ability_calls'] ),
+	'explicit repo on multi-plugin subsite files immediately (#61)'
 );
 
 // --- page_url drives repo inference, not just the executing blog --------
@@ -572,6 +610,36 @@ roadie_test_assert(
 $last = end( $GLOBALS['extrachill_roadie_test_state']['ability_calls'] );
 roadie_test_assert( 'open' === ( $last['input']['state'] ?? '' ), 'list_recent_issues defaults state to open' );
 roadie_test_assert( 20 === ( $last['input']['per_page'] ?? 0 ), 'list_recent_issues defaults per_page to 20' );
+
+// --- #61: list_recent_issues surfaces STRUCTURED dedupe choices ---------
+// Alongside the raw `issues` array (kept for model reasoning), the handler
+// returns a {question, choices} payload: one "Comment on #N" choice per
+// candidate duplicate plus a "File a new issue instead" escape, so the
+// QuestionCard renders deterministically.
+roadie_test_assert(
+	is_string( $listed['data']['question'] ?? null ) && '' !== $listed['data']['question'],
+	'list_recent_issues carries a dedupe question string (#61)'
+);
+$dedupe_choices = $listed['data']['choices'] ?? array();
+// One real issue (#11; the PR #12 is filtered) => 1 comment choice + 1 escape.
+roadie_test_assert( is_array( $dedupe_choices ) && 2 === count( $dedupe_choices ), 'dedupe choices = 1 comment-on-issue + 1 file-new (#61)' );
+roadie_test_assert(
+	false !== strpos( $dedupe_choices[0]['label'] ?? '', '#11' ),
+	'first dedupe choice labels the candidate duplicate by number (#61)'
+);
+roadie_test_assert(
+	false !== strpos( $dedupe_choices[0]['message'] ?? '', '#11' ),
+	'first dedupe choice reply references issue #11 for comment_on_issue (#61)'
+);
+roadie_test_assert(
+	false !== stripos( $dedupe_choices[1]['label'] ?? '', 'new issue' ),
+	'last dedupe choice is the file-a-new-issue escape (#61)'
+);
+// The raw issues array is preserved (additive contract, not a replacement).
+roadie_test_assert(
+	1 === count( $listed['data']['issues'] ?? array() ),
+	'list_recent_issues keeps the raw normalized issues array alongside choices (#61)'
+);
 
 // per_page clamping
 $tool->handle_tool_call( array(
