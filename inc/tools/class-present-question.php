@@ -3,12 +3,17 @@
  * Present Question Tool
  *
  * Presentational chat tool that lets the agent surface a multiple-choice
- * question to the user as an interactive card. Instead of asking an
- * open-ended question and parsing a free-text reply, the agent calls
+ * question to the user as an interactive card. The agent calls
  * `present_question` with a question string and a small set of choices;
  * the frontend chat renders each choice as a clickable button. Clicking a
  * choice sends its `message` back to the agent as a normal user turn, so
  * the round-trip is automatic and the agent gets a clean, unambiguous answer.
+ *
+ * The chat input is ALWAYS available — it is the permanent escape hatch for
+ * any answer that isn't one of the choices. There is no "freeform" knob the
+ * agent can toggle: a chat box that's always present is not a mode. The tool
+ * deliberately exposes no such parameter so the model can never (and need
+ * never) reason about whether free text is "allowed."
  *
  * This is a pure presentational tool — it performs no cross-site calls and
  * needs no capability gate beyond being offered in the chat surface. It simply
@@ -64,11 +69,11 @@ class ECRoadie_PresentQuestion extends BaseTool {
 				'type'       => 'object',
 				'required'   => array( 'question', 'choices' ),
 				'properties' => array(
-					'question'       => array(
+					'question' => array(
 						'type'        => 'string',
 						'description' => 'The question to present to the user. A single, clear prompt.',
 					),
-					'choices'        => array(
+					'choices'  => array(
 						'type'        => 'array',
 						'description' => 'The available choices, in display order. Keep it to a handful of clear, mutually-exclusive options.',
 						'items'       => array(
@@ -89,10 +94,6 @@ class ECRoadie_PresentQuestion extends BaseTool {
 								),
 							),
 						),
-					),
-					'allow_freeform' => array(
-						'type'        => 'boolean',
-						'description' => 'Optional. When true, signals the UI may also offer a free-text answer alongside the choices.',
 					),
 				),
 			),
@@ -173,10 +174,6 @@ class ECRoadie_PresentQuestion extends BaseTool {
 			'question' => $question,
 			'choices'  => $choices,
 		);
-
-		if ( isset( $parameters['allow_freeform'] ) ) {
-			$result['allow_freeform'] = (bool) $parameters['allow_freeform'];
-		}
 
 		return array(
 			'result' => $result,

@@ -633,8 +633,8 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	 * Each choice's `message` is phrased as the USER speaking: it becomes the
 	 * next turn when clicked, instructing the agent to re-file against the
 	 * chosen repo (now explicit, so the disambiguation branch is skipped). The
-	 * chat input always stays live (allow_freeform defaults true), so the user
-	 * can type "none of those" or describe the surface instead.
+	 * chat input is always live — the permanent escape hatch — so the user can
+	 * type "none of those" or describe the surface instead of clicking.
 	 *
 	 * LAYER PURITY (RULES.md): the candidate set is the registry-driven
 	 * $repo_candidates; no plugin name is named in this method.
@@ -772,8 +772,8 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		// "comment on #N" choice per existing issue plus a "file a new issue
 		// instead" escape. The raw `issues` array above is kept intact because
 		// the model still reasons over it; the structured choices are purely
-		// additive. The chat input stays live (allow_freeform defaults true),
-		// so the user can type a free-form answer instead of clicking.
+		// additive. The chat input is always live — the permanent escape
+		// hatch — so the user can type a free-form answer instead of clicking.
 		$dedupe_choices = $this->dedupe_choices( $repo, $issues );
 		if ( array() !== $dedupe_choices ) {
 			$data['question'] = '' !== $keywords
@@ -797,7 +797,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	 * the USER speaking so it becomes the next turn when clicked: clicking a
 	 * "comment" choice steers the agent toward comment_on_issue against that
 	 * number; clicking the escape steers it toward file_issue. The chat input
-	 * remains the universal override (allow_freeform defaults true).
+	 * is always live — the permanent, universal override.
 	 *
 	 * Returns an empty array when there are no candidate issues, so the caller
 	 * only attaches the question/choices when a real bounded set exists.

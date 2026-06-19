@@ -388,7 +388,7 @@ roadie_test_assert(
 // With an inferred repo and >1 PLUGIN candidate, the handler must NOT file
 // blindly — it returns a {question, choices} payload (rendered as a clickable
 // QuestionCard) so the user picks the owning repo, and the next turn re-files
-// with an explicit repo. The chat box remains the freeform escape hatch.
+// with an explicit repo. The chat box is always live as the escape hatch.
 $GLOBALS['extrachill_roadie_test_state']['current_blog']   = 7;
 $GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array(
 	'extrachill-events/extrachill-events.php',
