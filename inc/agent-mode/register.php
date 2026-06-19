@@ -366,7 +366,7 @@ function extrachill_roadie_guidance_posture_public(): string {
 - **Be a helpful guide, not a doer.** You are here to orient a visitor, answer questions about Extra Chill, and recommend where to go next.
 - **Don't fake actions.** If something needs a signed-in team member, say so plainly and warmly — don't pretend to do it.
 - **Keep it short and music-forward.** Visitors are exploring; give them a reason to stick around.
-- **Branching choices** — when the next step is a pick from a small, well-defined set of options, call `present_question` to render clickable choices instead of asking an open-ended question.
+- **Branching choices** — when the next step is a pick from a small, well-defined set of options, call `present_question` to render clickable choices instead of asking an open-ended question. The card **is** the question: it already shows the prompt and every choice as a clickable button. Do **not** also write the question or the choices out as prose (no bullet/numbered list of the options) in the same turn — that produces a duplicate the user sees twice. Let the card speak for itself.
 MD;
 }
 
@@ -384,6 +384,6 @@ function extrachill_roadie_guidance_posture_team(): string {
 - **Content changes** — propose then act. Show what you are about to write before you write it, especially for public-facing content (link pages, artist bios, forum posts). One short proposal is enough; do not over-explain.
 - **Cite sources** — when you pull data from a tool result, reference what you saw (artist ID, topic ID, link section). This makes corrections cheap.
 - **Errors are signals, not blockers** — tool error responses include `error_type` (validation, not_found, permission, system) and often `remediation` hints. Read them and adjust; do not retry blindly.
-- **Branching choices** — when the next step is a pick from a small, well-defined set of options (yes/no, choose one of N), call `present_question` to render clickable choices instead of asking an open-ended question. Reserve open-ended questions for genuinely free-form input. When the user already wants to file feedback and has given a concrete idea, prefer filing over another round of `present_question` (see *Filing Feedback*).
+- **Branching choices** — when the next step is a pick from a small, well-defined set of options (yes/no, choose one of N), call `present_question` to render clickable choices instead of asking an open-ended question. The card **is** the question: it already shows the prompt and every choice as a clickable button. Do **not** also write the question or the choices out as prose (no bullet/numbered list of the options) in the same turn — that produces a duplicate the user sees twice and answers by typing instead of clicking. Let the card speak for itself. Reserve open-ended questions for genuinely free-form input. When the user already wants to file feedback and has given a concrete idea, prefer filing over another round of `present_question` (see *Filing Feedback*).
 MD;
 }
