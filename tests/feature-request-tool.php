@@ -426,6 +426,129 @@ roadie_test_assert(
 	'disambiguation hint points the model at inspect_code to ground the owning component (#57)'
 );
 
+// --- page_url drives repo inference, not just the executing blog --------
+// The motivating bug (qrisg): a team member chatting from the main site
+// (blog 1, multi-repo, inherently ambiguous) about a specific subsite's page
+// was forced to name the repo because inference only looked at the executing
+// blog. page_url (the page the user actually had open) is the disambiguator.
+//
+// Set up a network site table so page_url → blog id resolves like core's
+// get_blog_id_from_url(), and give each blog its own active plugins so the
+// detector reads the VIEWED subsite's surface, not the executing one's.
+$GLOBALS['extrachill_roadie_test_state']['network_sites'] = array(
+	'extrachill.test|/'        => 1, // main site
+	'events.extrachill.test|/' => 7, // events subsite
+	'shop.extrachill.test|/'   => 3, // shop subsite
+);
+$GLOBALS['extrachill_roadie_test_state']['active_plugins_by_blog'] = array(
+	1 => array(),                                            // main site: no registered subsite plugin
+	7 => array( 'extrachill-events/extrachill-events.php' ), // events subsite
+	3 => array( 'extrachill-shop/extrachill-shop.php' ),     // shop subsite
+);
+
+// Chat turn EXECUTES on the main site (blog 1) but the user had the EVENTS
+// calendar open. Inference must follow page_url → events repo, not blog 1.
+$GLOBALS['extrachill_roadie_test_state']['current_blog']  = 1;
+$GLOBALS['extrachill_roadie_test_state']['ability_calls'] = array();
+
+$page_inferred = $tool->handle_tool_call( array(
+	'action'   => 'file_issue',
+	'title'    => 'Calendar filter bar wraps awkwardly on mobile',
+	'body'     => 'On the events calendar the tonight/this-weekend buttons wrap below the search box on narrow screens.',
+	'page_url' => 'https://events.extrachill.test/calendar/',
+) );
+roadie_test_assert( true === $page_inferred['success'], 'file_issue succeeds with repo inferred from page_url' );
+roadie_test_assert(
+	'Extra-Chill/extrachill-events' === ( $page_inferred['data']['repo'] ?? '' ),
+	'repo infers from the VIEWED subsite (page_url=events) even though the turn executes on blog 1. Got: ' . ( $page_inferred['data']['repo'] ?? '(none)' )
+);
+roadie_test_assert(
+	true === ( $page_inferred['data']['repo_inferred'] ?? false ),
+	'page_url-inferred repo is flagged repo_inferred'
+);
+$page_call = end( $GLOBALS['extrachill_roadie_test_state']['ability_calls'] );
+roadie_test_assert(
+	'Extra-Chill/extrachill-events' === ( $page_call['input']['repo'] ?? '' ),
+	'page_url-inferred repo is forwarded to the create-github-issue ability'
+);
+
+// A page_url for a DIFFERENT subsite resolves to THAT subsite's repo — proving
+// the signal is the page, not a fixed default.
+$GLOBALS['extrachill_roadie_test_state']['ability_calls'] = array();
+$shop_inferred = $tool->handle_tool_call( array(
+	'action'   => 'file_issue',
+	'title'    => 'Cart total mis-renders',
+	'body'     => 'The shop cart total shows the wrong currency symbol.',
+	'page_url' => 'https://shop.extrachill.test/cart/',
+) );
+roadie_test_assert(
+	'Extra-Chill/extrachill-shop' === ( $shop_inferred['data']['repo'] ?? '' ),
+	'a shop page_url infers the shop repo — inference tracks the page, not a default. Got: ' . ( $shop_inferred['data']['repo'] ?? '(none)' )
+);
+
+// Explicit repo still wins over page_url inference.
+$GLOBALS['extrachill_roadie_test_state']['ability_calls'] = array();
+$page_explicit = $tool->handle_tool_call( array(
+	'action'   => 'file_issue',
+	'repo'     => 'Extra-Chill/extrachill-roadie',
+	'title'    => 'Explicit beats page_url',
+	'body'     => 'Caller named the repo even though they were on the events page.',
+	'page_url' => 'https://events.extrachill.test/calendar/',
+) );
+roadie_test_assert(
+	'Extra-Chill/extrachill-roadie' === ( $page_explicit['data']['repo'] ?? '' ),
+	'explicit repo param overrides page_url inference'
+);
+roadie_test_assert(
+	false === ( $page_explicit['data']['repo_inferred'] ?? true ),
+	'explicit repo (with page_url present) is not flagged inferred'
+);
+
+// An OFF-NETWORK page_url does not resolve to a blog, so inference falls back
+// to the executing blog (blog 1). Blog 1 has no registered subsite plugin but
+// its active theme (extrachill) IS in the registry, so inference resolves to
+// the theme repo — proving the fallback path runs against the executing blog,
+// not the unresolved page_url.
+$GLOBALS['extrachill_roadie_test_state']['ability_calls'] = array();
+$offnet = $tool->handle_tool_call( array(
+	'action'   => 'file_issue',
+	'title'    => 'Off-network page',
+	'body'     => 'page_url is some external site.',
+	'page_url' => 'https://example.com/some/page/',
+) );
+roadie_test_assert(
+	'Extra-Chill/extrachill' === ( $offnet['data']['repo'] ?? '' ),
+	'off-network page_url falls back to the executing blog (blog 1 → theme repo), not the unresolved external URL. Got: ' . ( $offnet['data']['repo'] ?? '(none)' )
+);
+
+// The tool advertises the page_url client-context binding so the runtime can
+// merge client_context['page_url'] into the param automatically (same
+// mechanism inspect_page uses).
+$page_def = $tool->getToolDefinition();
+roadie_test_assert(
+	( $page_def['client_context_bindings']['page_url'] ?? '' ) === 'page_url',
+	'definition advertises the page_url client-context binding'
+);
+roadie_test_assert(
+	( $reg['meta']['client_context_bindings']['page_url'] ?? '' ) === 'page_url',
+	'registration meta advertises the page_url client-context binding for the runtime merge'
+);
+roadie_test_assert(
+	isset( $page_def['parameters']['properties']['page_url'] ),
+	'definition exposes a page_url parameter slot for the binding'
+);
+roadie_test_assert(
+	! in_array( 'page_url', $page_def['parameters']['required'] ?? array(), true ),
+	'page_url is optional (normally supplied from client context, not the model)'
+);
+
+// Tear down the per-blog/network test seams so later assertions use the flat
+// defaults.
+unset(
+	$GLOBALS['extrachill_roadie_test_state']['network_sites'],
+	$GLOBALS['extrachill_roadie_test_state']['active_plugins_by_blog']
+);
+
 // Restore the default blog/plugins for any later assertions.
 $GLOBALS['extrachill_roadie_test_state']['current_blog']   = 1;
 $GLOBALS['extrachill_roadie_test_state']['active_plugins'] = array();

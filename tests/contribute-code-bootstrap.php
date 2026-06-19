@@ -78,6 +78,16 @@ if ( ! function_exists( 'restore_current_blog' ) ) {
 if ( ! function_exists( 'get_option' ) ) {
 	function get_option( string $name, $default = false ) {
 		if ( 'active_plugins' === $name ) {
+			// Per-blog active-plugin map (set by tests that need to prove
+			// blog-resolution drives which subsite's plugins are read).
+			// Falls back to the flat list used by the rest of the suite.
+			$by_blog = $GLOBALS['extrachill_roadie_test_state']['active_plugins_by_blog'] ?? null;
+			if ( is_array( $by_blog ) ) {
+				$blog_id = (int) $GLOBALS['extrachill_roadie_test_state']['current_blog'];
+				if ( array_key_exists( $blog_id, $by_blog ) ) {
+					return $by_blog[ $blog_id ];
+				}
+			}
 			return $GLOBALS['extrachill_roadie_test_state']['active_plugins'];
 		}
 		return $GLOBALS['extrachill_roadie_test_state']['options'][ $name ] ?? $default;
@@ -120,6 +130,28 @@ if ( ! function_exists( 'get_current_user_id' ) ) {
 if ( ! function_exists( 'wp_json_encode' ) ) {
 	function wp_json_encode( $data, int $flags = 0 ): string {
 		return (string) json_encode( $data, $flags );
+	}
+}
+
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	function wp_parse_url( string $url, int $component = -1 ) {
+		return parse_url( $url, $component ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- test stub.
+	}
+}
+
+if ( ! function_exists( 'get_blog_id_from_url' ) ) {
+	/**
+	 * Test stub mirroring core multisite host+path → blog id resolution.
+	 *
+	 * Looks up the host/path pair in a test-controlled network site table at
+	 * $GLOBALS['extrachill_roadie_test_state']['network_sites'], shaped as
+	 * `[ 'host|/path/' => blog_id ]`. Returns 0 when no row matches, exactly
+	 * like core does for an off-network URL.
+	 */
+	function get_blog_id_from_url( string $host, string $path = '/' ): int {
+		$sites = $GLOBALS['extrachill_roadie_test_state']['network_sites'] ?? array();
+		$key   = strtolower( $host ) . '|' . $path;
+		return (int) ( $sites[ $key ] ?? 0 );
 	}
 }
 
