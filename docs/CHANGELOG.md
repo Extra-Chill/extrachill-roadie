@@ -2,6 +2,18 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.14.0] - 2026-06-19
+
+### Added
+- add inspect_page DOM-read tool so Roadie sees the rendered page
+- read-only inspect_code tool + data-machine-events repo map so Roadie can ground events-calendar feedback (#54, #57)
+
+### Changed
+- tighten Roadie filing guidance, drop hardcoded specifics
+
+### Fixed
+- stop Roadie's present_question loop and ground its UI feedback
+
 ## [0.13.0] - 2026-06-17
 
 ### Added
