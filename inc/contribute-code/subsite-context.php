@@ -247,3 +247,81 @@ function extrachill_roadie_detect_subsite_context( ?int $blog_id = null ): array
 	 */
 	return (array) apply_filters( 'extrachill_roadie_subsite_context', $context, $blog_id );
 }
+
+/**
+ * Resolve the blog id that owns a given front-end page URL.
+ *
+ * This is the page-aware complement to plain `get_current_blog_id()` repo
+ * inference. On the MAIN site (blog 1) the surviving subsite-specific surface
+ * spans several repos (theme, blog, seo, admin-tools), so "which blog is the
+ * REST request running on" is the wrong question — the request runs on
+ * whichever subsite the chat widget POSTs to, not necessarily the subsite the
+ * user actually had open. The page the user was viewing (page_url) is the
+ * disambiguating signal: a URL like `https://events.extrachill.com/calendar`
+ * unambiguously names the events subsite even when the chat turn executes on
+ * blog 1.
+ *
+ * Resolution is entirely WordPress-multisite-native and registry-free: the
+ * host (and path, for subdirectory networks) are matched against the network's
+ * registered sites via core `get_blog_id_from_url()`. There is NO plugin-name
+ * or brand-name special-casing here — page → blog is pure network topology,
+ * blog → repos stays driven by the slug-to-repo registry downstream. Adding a
+ * new subsite to the network is sufficient; no inference-code change is needed.
+ *
+ * @since 0.15.0
+ *
+ * @param string $page_url Front-end URL the user was viewing (from client context).
+ * @return int Resolved blog id, or 0 when the URL is empty, unparseable, or
+ *             does not belong to a registered network site.
+ */
+function extrachill_roadie_blog_id_from_page_url( string $page_url ): int {
+	$page_url = trim( $page_url );
+	if ( '' === $page_url ) {
+		return 0;
+	}
+
+	if ( ! function_exists( 'wp_parse_url' ) || ! function_exists( 'get_blog_id_from_url' ) ) {
+		return 0;
+	}
+
+	$parts = wp_parse_url( $page_url );
+	if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+		return 0;
+	}
+
+	$scheme = strtolower( (string) ( $parts['scheme'] ?? '' ) );
+	if ( '' !== $scheme && ! in_array( $scheme, array( 'http', 'https' ), true ) ) {
+		return 0;
+	}
+
+	$host = strtolower( (string) $parts['host'] );
+
+	// Path matters only on subdirectory multisite networks. For subdomain
+	// networks (the EC topology) the path is always '/'. Normalize to a
+	// trailing-slashed path so get_blog_id_from_url() matches the site row,
+	// which stores paths with a trailing slash.
+	$path = (string) ( $parts['path'] ?? '/' );
+	$path = '' === $path ? '/' : $path;
+	if ( '/' !== substr( $path, -1 ) ) {
+		$path .= '/';
+	}
+
+	$blog_id = (int) get_blog_id_from_url( $host, $path );
+
+	// Subdirectory networks: a deep path (e.g. /events/calendar/) won't match
+	// the site row (path '/events/') on the first try. Walk the path down to
+	// its first segment so a deep URL still resolves to its owning subsite.
+	if ( 0 === $blog_id && '/' !== $path ) {
+		$segments = array_values( array_filter( explode( '/', $path ) ) );
+		while ( ! empty( $segments ) && 0 === $blog_id ) {
+			$candidate = '/' . implode( '/', $segments ) . '/';
+			$blog_id   = (int) get_blog_id_from_url( $host, $candidate );
+			array_pop( $segments );
+		}
+		if ( 0 === $blog_id ) {
+			$blog_id = (int) get_blog_id_from_url( $host, '/' );
+		}
+	}
+
+	return $blog_id;
+}

@@ -55,7 +55,17 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			$this->tool_slug,
 			array( $this, 'getToolDefinition' ),
 			array( 'chat' ),
-			array( 'access_level' => 'authenticated' )
+			array(
+				'access_level'            => 'authenticated',
+				// Bind the per-turn client-context page_url into the `page_url`
+				// parameter slot when the model doesn't pass one. inc/frontend-
+				// chat.php populates client_context['page_url'] from the widget;
+				// the runtime merges it here (caller-supplied value still wins,
+				// per WP_Agent_Tool_Parameters::buildParameters) so repo
+				// inference can prefer the subsite the user actually had open.
+				// Mirrors the exact mechanism inspect_page uses (#58).
+				'client_context_bindings' => array( 'page_url' => 'page_url' ),
+			)
 		);
 	}
 
@@ -66,10 +76,11 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	 */
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'When the user wants to track something on GitHub — a feature request, a bug report, or any "open an issue on github" / "file an issue" / "report a bug" ask — use this tool to file or look up GitHub issues against the appropriate Extra Chill repo. This is ALWAYS the right tool for filing GitHub issues; never use create_taxonomy_term (which makes a category/tag term, not a GitHub issue) for issue/bug-report requests. Three actions are supported: action="file_issue" creates a new issue (requires title, body; repo is optional and auto-inferred from the current subsite when omitted); action="list_recent_issues" finds existing open issues to dedupe against (optional repo/labels/state); action="comment_on_issue" adds a comment to an existing issue (requires issue_number, body; repo optional). When the user is chatting from the subsite that owns the code, leave repo unset and it will be inferred from page context — do not interrogate the user for the repo. Before filing new issues, prefer calling list_recent_issues first with a few keywords from the proposed title to surface duplicates and ask the user whether to comment on an existing thread instead. Use propose_code_change instead when the user wants the change implemented, not just tracked.',
-			'parameters'  => array(
+			'class'                   => self::class,
+			'method'                  => 'handle_tool_call',
+			'client_context_bindings' => array( 'page_url' => 'page_url' ),
+			'description'             => 'When the user wants to track something on GitHub — a feature request, a bug report, or any "open an issue on github" / "file an issue" / "report a bug" ask — use this tool to file or look up GitHub issues against the appropriate Extra Chill repo. This is ALWAYS the right tool for filing GitHub issues; never use create_taxonomy_term (which makes a category/tag term, not a GitHub issue) for issue/bug-report requests. Three actions are supported: action="file_issue" creates a new issue (requires title, body; repo is optional and auto-inferred from the current subsite when omitted); action="list_recent_issues" finds existing open issues to dedupe against (optional repo/labels/state); action="comment_on_issue" adds a comment to an existing issue (requires issue_number, body; repo optional). When the user is chatting from the subsite that owns the code, leave repo unset and it will be inferred from page context — do not interrogate the user for the repo. Before filing new issues, prefer calling list_recent_issues first with a few keywords from the proposed title to surface duplicates and ask the user whether to comment on an existing thread instead. Use propose_code_change instead when the user wants the change implemented, not just tracked.',
+			'parameters'              => array(
 				'type'       => 'object',
 				'required'   => array( 'action' ),
 				'properties' => array(
@@ -111,6 +122,10 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 					'per_page'     => array(
 						'type'        => 'integer',
 						'description' => 'How many recent issues to fetch with list_recent_issues. Defaults to 20, max 100.',
+					),
+					'page_url'     => array(
+						'type'        => 'string',
+						'description' => 'Optional. The page the user is currently viewing. Normally supplied automatically from chat client context (you do not need to set it); when present it disambiguates which subsite — and therefore which repo — an omitted repo should be inferred against. Pass it explicitly only if you know the user is referring to a different on-network page than the one they are on.',
 					),
 				),
 			),
@@ -157,7 +172,12 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		$repo_inferred   = false;
 		$repo_candidates = array();
 		if ( '' === $repo ) {
-			$repo_candidates = $this->candidate_repos_from_context();
+			// The page the user actually had open (bound from client context
+			// via client_context_bindings) is the disambiguating signal for
+			// repo inference on the multi-repo main site. Caller-supplied repo
+			// still wins (handled by the '' === $repo guard above).
+			$page_url        = trim( (string) ( $parameters['page_url'] ?? '' ) );
+			$repo_candidates = $this->candidate_repos_from_context( $page_url );
 			$inferred        = $repo_candidates[0] ?? '';
 			if ( '' !== $inferred ) {
 				$repo          = $inferred;
@@ -294,11 +314,13 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	 * back to requiring an explicit `repo`.
 	 *
 	 * @since 0.11.0
+	 * @since 0.15.0 Accepts $page_url to prefer the viewed subsite.
 	 *
+	 * @param string $page_url Optional front-end URL the user was viewing.
 	 * @return string `owner/name` repo, or empty string when inference fails.
 	 */
-	protected function infer_repo_from_context(): string {
-		$candidates = $this->candidate_repos_from_context();
+	protected function infer_repo_from_context( string $page_url = '' ): string {
+		$candidates = $this->candidate_repos_from_context( $page_url );
 		return $candidates[0] ?? '';
 	}
 
@@ -321,18 +343,42 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	 * excluding it from subsite-context detection is sufficient to make it a
 	 * candidate — no inference-code change required.
 	 *
-	 * @since 0.13.0
+	 * BLOG RESOLUTION (page-url repo inference): the blog whose context we detect
+	 * is preferentially the one that owns the page the user actually had open
+	 * (page_url), NOT just the blog the chat request happens to execute on.
+	 * The chat widget POSTs to a single REST endpoint, so a team member viewing
+	 * events.extrachill.com while the turn runs on blog 1 would otherwise get
+	 * blog-1 candidates — the exact ambiguity that forced Roadie to ASK which
+	 * repo. Resolving page_url → blog id (pure network topology, see
+	 * extrachill_roadie_blog_id_from_page_url) disambiguates without naming a
+	 * single plugin. Falls back to the executing blog when no page_url is
+	 * supplied or it doesn't resolve to a network site.
 	 *
+	 * @since 0.13.0
+	 * @since 0.15.0 Accepts $page_url to prefer the viewed subsite.
+	 *
+	 * @param string $page_url Optional front-end URL the user was viewing.
 	 * @return string[] Ordered, de-duplicated `owner/name` repos. Empty when
 	 *                  no subsite slug maps to a registered repo.
 	 */
-	protected function candidate_repos_from_context(): array {
+	protected function candidate_repos_from_context( string $page_url = '' ): array {
 		if ( ! function_exists( 'extrachill_roadie_detect_subsite_context' )
 			|| ! function_exists( 'extrachill_roadie_repo_for_slug' ) ) {
 			return array();
 		}
 
-		$blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		$blog_id = 0;
+
+		// Prefer the subsite that owns the page the user actually had open.
+		if ( '' !== $page_url && function_exists( 'extrachill_roadie_blog_id_from_page_url' ) ) {
+			$blog_id = extrachill_roadie_blog_id_from_page_url( $page_url );
+		}
+
+		// Fall back to the blog the chat turn is executing on.
+		if ( $blog_id <= 0 ) {
+			$blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		}
+
 		$context = extrachill_roadie_detect_subsite_context( $blog_id > 0 ? $blog_id : null );
 
 		$candidates = array();
