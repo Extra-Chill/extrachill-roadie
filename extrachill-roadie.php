@@ -27,6 +27,7 @@ define( 'EXTRACHILL_ROADIE_PLUGIN_FILE', __FILE__ );
 define( 'EXTRACHILL_ROADIE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/agent-mode/register.php';
+require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/agent-mode/soul-sync.php';
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/tools/register.php';
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/permissions.php';
 require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/team-experience/events.php';
@@ -47,5 +48,6 @@ require_once EXTRACHILL_ROADIE_PLUGIN_DIR . 'inc/contribute-code/inherit-resolve
  */
 function extrachill_roadie_bootstrap(): void {
 	extrachill_roadie_sync_agent_policy();
+	extrachill_roadie_sync_soul();
 }
 add_action( 'plugins_loaded', 'extrachill_roadie_bootstrap', 20 );

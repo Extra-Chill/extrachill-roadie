@@ -99,7 +99,7 @@ ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'manage_link_page' 
 ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'manage_user_profile' ), 'Guidance should reference manage_user_profile tool.' );
 ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'manage_community' ), 'Guidance should reference manage_community tool.' );
 ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Calling-User Identity Contract' ), 'Guidance should document the calling-user identity contract.' );
-ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Editorial Voice' ), 'Guidance should document editorial voice.' );
+ec_roadie_smoke_assert( ! str_contains( $guidance_with_caller, 'Editorial Voice' ), 'Editorial voice is persona and now lives in SOUL.md — the mode block should NOT carry it.' );
 ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Operating Mode' ), 'Guidance should document operating mode (propose-then-act for writes).' );
 
 // Without a caller (user_id 0), the tier resolver returns the public tier, so
