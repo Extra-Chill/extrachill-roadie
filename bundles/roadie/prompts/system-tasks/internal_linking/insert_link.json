@@ -1,0 +1,19 @@
+{
+    "artifact_id": "system-task:internal_linking:insert_link",
+    "artifact_type": "prompt",
+    "changelog": "",
+    "content": "Weave an internal link into this paragraph by wrapping a relevant existing phrase in an anchor tag.\n\nRules:\n- Do NOT add new text or change meaning\n- Return ONLY the updated paragraph HTML\n- If no natural insertion point exists, return the paragraph unchanged\n\nURL: {{url}}\nTitle: {{title}}\n\nParagraph:\n{{paragraph}}",
+    "content_hash": "339e162c36656cb6bb9676ba75ea9ad18fb242429f9003c7b31baa15734c38d0",
+    "metadata": {
+        "label": "Internal Link Insertion Prompt",
+        "prompt_key": "insert_link",
+        "task_type": "internal_linking",
+        "variables": {
+            "paragraph": "The paragraph HTML to insert the link into",
+            "title": "Title of the related post",
+            "url": "URL of the related post to link to"
+        }
+    },
+    "source_path": "system-tasks/internal_linking/insert_link.md",
+    "version": "builtin"
+}

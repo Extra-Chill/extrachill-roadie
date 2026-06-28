@@ -1,0 +1,17 @@
+{
+    "artifact_id": "system-task:meta_description_generation:generate",
+    "artifact_type": "prompt",
+    "changelog": "",
+    "content": "Write a meta description for this page. Use your knowledge of this site's voice and audience.\n\nGuidelines:\n- Maximum 155 characters (strict limit)\n- Lead with the direct answer or hook — what will the reader learn or get?\n- Include the primary topic/keyword naturally\n- Create curiosity or value to encourage clicks\n- Don't duplicate the title — expand on it\n- No quotes around the description\n- One or two sentences\n\nReturn ONLY the meta description text, nothing else.\n\nPage context:\n{{context}}",
+    "content_hash": "1b0cb62c2cb7c3b35277a966ec2fa744d58b43e19aa5826fb1d310d5cb44eecc",
+    "metadata": {
+        "label": "Meta Description Prompt",
+        "prompt_key": "generate",
+        "task_type": "meta_description_generation",
+        "variables": {
+            "context": "Post title, content excerpt, categories, and tags"
+        }
+    },
+    "source_path": "system-tasks/meta_description_generation/generate.md",
+    "version": "builtin"
+}

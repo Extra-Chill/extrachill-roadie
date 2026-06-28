@@ -1,0 +1,45 @@
+{
+    "agent": {
+        "agent_config": {
+            "default_model": "gpt-5.4-nano",
+            "default_provider": "openai",
+            "description": "Your Extra Chill assistant. Ask about artist profiles, link pages, community, and more.",
+            "tool_policy": {
+                "mode": "deny",
+                "tools": [
+                    "progress_story"
+                ]
+            }
+        },
+        "description": "",
+        "label": "Roadie",
+        "site_scope": null,
+        "slug": "roadie"
+    },
+    "bundle_slug": "roadie",
+    "bundle_version": "1",
+    "exported_at": "2026-06-28T18:43:19+00:00",
+    "exported_by": "data-machine/0.157.0",
+    "included": {
+        "auth_refs": [],
+        "extensions": [],
+        "flows": [],
+        "handler_auth": "refs",
+        "memory": [
+            "agent/SOUL.md"
+        ],
+        "pipelines": [],
+        "prompts": [
+            "system-tasks/alt_text_generation/generate.json",
+            "system-tasks/daily_memory_generation/daily_memory.json",
+            "system-tasks/internal_linking/insert_link.json",
+            "system-tasks/meta_description_generation/generate.json"
+        ],
+        "rubrics": [],
+        "seed_queues": [],
+        "tool_policies": []
+    },
+    "schema_version": 1,
+    "source_ref": "",
+    "source_revision": ""
+}

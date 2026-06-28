@@ -1,0 +1,20 @@
+{
+    "artifact_id": "system-task:daily_memory_generation:daily_memory",
+    "artifact_type": "prompt",
+    "changelog": "",
+    "content": "You are maintaining an AI agent's MEMORY.md file. This file is injected into every AI context window, so the PERSISTENT output must stay lean and fit under {{max_size}}.\n\n## Goal\n\nProduce a true partition of the current MEMORY.md:\n- PERSISTENT becomes the new MEMORY.md. It contains compact durable facts needed in future sessions.\n- ARCHIVED is appended to the daily file for {{date}}. It contains the original detail that was moved out of MEMORY.md.\n- Each fact or detail from the source appears in exactly one output section. If a detail is archived, leave only a short durable summary or archive pointer in PERSISTENT.\n\n## What Belongs In PERSISTENT\n\nKeep concise facts that remain useful regardless of when the next session runs:\n- Current architecture, APIs, command surfaces, paths, URLs, credentials locations without secrets, and ownership facts.\n- Stable preferences, rules, naming conventions, and operational constraints.\n- Current project state summarized as outcome and next action, not the investigation story.\n- Cross-system relationships that prevent future rediscovery.\n\nUse compact bullets. Merge overlapping entries. Replace long historical sections with short durable summaries plus archive pointers.\n\n## What Belongs In ARCHIVED\n\nMove details that future sessions can retrieve from daily memory instead of loading every time:\n- Session play-by-play, troubleshooting traces, command transcripts, old release state, and temporary blockers.\n- Background stories that led to a durable fact.\n- Long lists where PERSISTENT only needs the current canonical pointer or summary.\n- Repeated facts already captured by a shorter persistent entry.\n\n## Acceptance Criteria\n\n- PERSISTENT is under {{max_size}}.\n- PERSISTENT and ARCHIVED are a partition: content moved to ARCHIVED is absent from PERSISTENT except for a concise summary or pointer.\n- PERSISTENT remains a valid MEMORY.md document with useful headings, but headings may be merged, renamed, or removed to meet the size target.\n- ARCHIVED preserves moved detail well enough that daily memory search/read can recover it later.\n\n## Output Format\n\nRespond in EXACTLY this format:\n\n===PERSISTENT===\n(new MEMORY.md content, compact and under {{max_size}})\n\n===ARCHIVED===\n(details moved out of MEMORY.md, organized by topic)\n\n{{activity_section}}---\n\n## Current MEMORY.md Content\n\n{{memory_content}}",
+    "content_hash": "3cda4fd80ece71154866bb1d1c2a181d87e8878bbeba2d42c96ed57fc68516a7",
+    "metadata": {
+        "label": "Daily Memory Prompt",
+        "prompt_key": "daily_memory",
+        "task_type": "daily_memory_generation",
+        "variables": {
+            "activity_section": "Activity context section (jobs and chat sessions from the day, if any)",
+            "date": "Target date for archival context (YYYY-MM-DD)",
+            "max_size": "Recommended maximum file size (human-readable, e.g. \"8 KB\")",
+            "memory_content": "Current full content of MEMORY.md"
+        }
+    },
+    "source_path": "system-tasks/daily_memory_generation/daily_memory.md",
+    "version": "builtin"
+}

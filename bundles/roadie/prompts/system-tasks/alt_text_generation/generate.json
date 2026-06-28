@@ -1,0 +1,17 @@
+{
+    "artifact_id": "system-task:alt_text_generation:generate",
+    "artifact_type": "prompt",
+    "changelog": "",
+    "content": "Write alt text for this image.\n\nGuidelines:\n- 1-2 sentences describing the image\n- Don't start with 'Image of' or 'Photo of'\n- Capitalize first word, end with period\n- Describe what's visually present, focus on its purpose in context\n- For charts/diagrams, provide a brief summary only\n- Match the voice and tone of this site\n\nReturn ONLY the alt text, nothing else.\n\nContext:\n{{context}}",
+    "content_hash": "57c77a8a8b0dc8a46d315a23a809b584f7c3289cfa7419d3c2cabcf5b9f8da2a",
+    "metadata": {
+        "label": "Alt Text Prompt",
+        "prompt_key": "generate",
+        "task_type": "alt_text_generation",
+        "variables": {
+            "context": "Attachment title, caption, description, and parent post title"
+        }
+    },
+    "source_path": "system-tasks/alt_text_generation/generate.md",
+    "version": "builtin"
+}
