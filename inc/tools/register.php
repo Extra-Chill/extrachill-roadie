@@ -42,6 +42,7 @@ add_action(
 		require_once __DIR__ . '/class-inspect-code.php';
 		require_once __DIR__ . '/class-inspect-page.php';
 		require_once __DIR__ . '/class-present-question.php';
+		require_once __DIR__ . '/class-search-content.php';
 
 		new ECRoadie_ManageArtistProfile();
 		new ECRoadie_ManageLinkPage();
@@ -54,6 +55,7 @@ add_action(
 		new ECRoadie_InspectCode();
 		new ECRoadie_InspectPage();
 		new ECRoadie_PresentQuestion();
+		new ECRoadie_SearchContent();
 	}
 );
 

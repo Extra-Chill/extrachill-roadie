@@ -4,7 +4,7 @@ Extra Chill platform integration for [Frontend Agent Chat](https://github.com/Au
 
 ## What It Does
 
-Roadie is the bridge between Extra Chill's platform features and Data Machine's chat system. It registers **eight chat tools** via the `datamachine_tools` filter and composes a role-aware operating context (the `roadie` agent mode) into the AI prompt. The tool surface a caller actually sees depends on their **tier** (public / team / admin).
+Roadie is the bridge between Extra Chill's platform features and Data Machine's chat system. It registers **nine chat tools** via the `datamachine_tools` filter and composes a role-aware operating context (the `roadie` agent mode) into the AI prompt. The tool surface a caller actually sees depends on their **tier** (public / team / admin).
 
 | Tool | Surface | Tier | Description |
 |------|---------|------|-------------|
@@ -15,9 +15,10 @@ Roadie is the bridge between Extra Chill's platform features and Data Machine's 
 | `propose_code_change` | sandbox | team+ | Dispatch a sandboxed coding agent that produces a reviewable patch + preview |
 | `apply_code_change` | host | team+ | Apply an approved sandbox artifact: commit, push, open a PR |
 | `file_feature_request` | GitHub | team+ | File / look up GitHub issues against the right EC repo (repo auto-inferred) |
+| `search_content` | network catalog | public | Read-only search of Extra Chill's published catalog; returns results as chat citations to ground music/editorial answers |
 | `present_question` | chat UI | public | Render a multiple-choice question as clickable buttons |
 
-The four cross-site management tools require authentication (`access_level: authenticated`) and auto-resolve the artist ID when the user has a single artist profile. The code-contribution and feature-request tools additionally require the `extrachill_propose_code` capability. `present_question` is the only `public`-access tool and is the only tool visible to public-tier callers.
+The four cross-site management tools require authentication (`access_level: authenticated`) and auto-resolve the artist ID when the user has a single artist profile. The code-contribution and feature-request tools additionally require the `extrachill_propose_code` capability. `search_content` and `present_question` are the two `public`-access tools and are the only tools visible to public-tier callers — `search_content` because the published catalog is public (logged-out visitors get grounded, sourced answers too), `present_question` because it is purely presentational.
 
 ## Role-Aware Tier Surface
 
@@ -25,15 +26,15 @@ Roadie resolves every caller to one of three tiers and tailors both the **visibl
 
 | Tier | Who | Tool surface |
 |------|-----|--------------|
-| `public` | Logged-out / non-team callers, and system/pipeline runs (`calling_user_id <= 0`) | `present_question` only |
-| `team` | `extra_chill_team` members (have the `access_roadie` cap) | All 8 tools |
-| `admin` | `manage_options` users | All 8 tools, plus act-on-behalf-of another user via explicit `user_id` |
+| `public` | Logged-out / non-team callers, and system/pipeline runs (`calling_user_id <= 0`) | `search_content` + `present_question` |
+| `team` | `extra_chill_team` members (have the `access_roadie` cap) | All 9 tools |
+| `admin` | `manage_options` users | All 9 tools, plus act-on-behalf-of another user via explicit `user_id` |
 
 Tier resolution lives in `extrachill_roadie_user_tier( int $user_id )` (`inc/permissions.php`) — a single auditable capability→tier map (highest wins): `manage_options` → admin, `access_roadie` → team, otherwise public.
 
 Two enforcement layers back this:
 
-1. **Tool visibility** — `extrachill_roadie_filter_tools_by_tier()` hooks `datamachine_resolved_tools` and, for public-tier callers, `unset()`s the seven management tools returned by `extrachill_roadie_managed_tool_slugs()` (everything except `present_question`). This avoids offering the model dead options.
+1. **Tool visibility** — `extrachill_roadie_filter_tools_by_tier()` hooks `datamachine_resolved_tools` and, for public-tier callers, `unset()`s the seven management tools returned by `extrachill_roadie_managed_tool_slugs()` (everything except the two public tools, `search_content` and `present_question`). This avoids offering the model dead options.
 2. **Per-call gates** — independent of visibility: cross-site write capability checks, `assert_acting_user_allowed()` (admin-only act-on-behalf-of), and `current_user_can( 'extrachill_propose_code' )` on the code/issue tools.
 
 ## Architecture
@@ -201,6 +202,20 @@ Files or looks up GitHub issues against the appropriate Extra Chill repo. **`rep
 
 Default labels (`roadie-submitted`, `feature-request`) are applied to filed issues; the repo allowlist and labels are filterable. The repo must be present in the registry; cross-org repos are rejected. Requires `extrachill_propose_code`.
 
+### search_content
+
+Read-only search of Extra Chill's **published** catalog across the whole multisite network — the 2,800+ articles, artist coverage, song-meaning and music-history pieces, festival/show coverage, and the deep Grateful Dead / Jerry Garcia writing. This is how Roadie **grounds music/editorial answers in real content with sources** instead of answering from the model's memory (which hallucinates — e.g. returning a Mick Jagger lyric for a Jerry Garcia quote).
+
+It wraps the existing `extrachill/multisite-search` ability (registered by [ExtraChill Search](https://github.com/Extra-Chill/extrachill-search)) — it does **not** reimplement search — and maps each result to a citation. The citations ride on the tool result's top-level `metadata.citations` in the canonical agents-api shape (`source.url` = permalink, `source.title` = post title, `source.label` = site name, plus a trimmed `snippet`), which Frontend Agent Chat normalizes onto the assistant message so the chat UI renders them as source cards. The same results are mirrored in the tool `data` so the model can read them and link the articles inline.
+
+| Param | Description |
+|-------|-------------|
+| `query` (required) | The artist, song, topic, person, or phrase to find. Search one topic at a time. |
+| `post_types` (optional) | Restrict to specific post types (e.g. `["post"]` for articles only) |
+| `limit` (optional) | How many results/citations to return (default 6, max 12) |
+
+`access_level: public` — the catalog is public, so logged-out visitors get grounded, sourced answers too. Read-only, published content only; degrades to a clean error if the search ability is absent. It is the catalog-read counterpart to the read-only `inspect_page`/`inspect_code` grounding tools: read the real source first, then speak from it.
+
 ### present_question
 
 Renders a multiple-choice question as clickable buttons in the chat UI. Use when the answer is one of a small, well-defined set of options. Clicking a choice sends its `message` back as the user's next turn automatically.
@@ -211,7 +226,7 @@ Renders a multiple-choice question as clickable buttons in the chat UI. Use when
 | `choices` (required) | Array of `{ label, message, description? }` objects |
 | `allow_freeform` (optional) | Signal the UI may also offer a free-text answer |
 
-No capability gate, no side effects — `access_level: public`. This is the only tool offered to public-tier callers.
+No capability gate, no side effects — `access_level: public`. Offered to public-tier callers alongside `search_content`.
 
 ## Sandbox-Backed Code Contribution
 
