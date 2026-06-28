@@ -1,24 +1,32 @@
 <?php
 /**
- * Smoke test: present_question loop guard.
+ * Smoke test: present_question loop guidance is positively framed.
  *
  * Regression guard for the production failure where Roadie called
- * `present_question` eleven times for a single "open an issue" intent and never
- * called `file_feature_request` (chat session 8b6eb0f8-3388-4fcd-9e99-179a5d5ced32,
- * 2026-06-28). The fix lives in two places, both asserted here:
+ * `present_question` repeatedly for a single "open an issue" intent and never
+ * called `file_feature_request` (chat sessions 8b6eb0f8 and e98fabab, user
+ * qrisg / Chris Gardner, 2026-06-19 / 2026-06-28).
  *
- *   1. The roadie mode directive (inc/agent-mode/register.php) must contain a
- *      HARD, binding cap on clarifying questions for filing intent, must tell
- *      the model to call file_feature_request rather than loop present_question,
- *      and must forbid restating the question/choices as plain text after a
- *      present_question card (the observed double-emit).
+ * The fix is STRUCTURE + POSITIVE FRAMING, not prohibitions. Chris's directive:
+ * do not steer the model with negative "do NOT / MUST / NEVER" constraints — a
+ * model that ignored the soft "file it" rule ignores a louder "don't" the same
+ * way. So this test asserts the *opposite* of the first attempt:
  *
- *   2. The present_question tool description (inc/tools/class-present-question.php)
- *      must carry the same anti-loop + no-restate + "file instead" guards so the
- *      model sees them on the tool itself, not only in the mode prose.
+ *   1. The roadie mode directive frames filing as the AFFIRMATIVE goal-state
+ *      (a filed issue + URL is the deliverable; file then refine via comment),
+ *      and describes `present_question` by what it IS for (a genuine one-off
+ *      branching pick) — NOT by what it must not do.
+ *   2. The directive carries NO negative-prohibition scaffolding for this
+ *      behavior ("CRITICAL USAGE LIMITS", "you MUST call", "NEVER use",
+ *      "present_question is NOT a filing tool", "you are never allowed").
+ *   3. The `present_question` tool description states the card contract
+ *      descriptively (the rendered card is the turn) and points filing intent
+ *      at `file_feature_request` as the forward path — again, positively.
  *
- * Pure assertion test — no WordPress bootstrap. Stubs mirror the registration
- * smoke so the guidance composes exactly as it does in production.
+ * The durable structural guardrail (gating present_question after N calls per
+ * filing intent) is blocked on data-machine#2813 — the per-turn tool-visibility
+ * seam isn't given conversation history. Until that lands, positive framing is
+ * the mitigation, and this test locks the framing in.
  *
  * Run with: php tests/present-question-loop-guard-smoke.php
  *
@@ -65,9 +73,8 @@ function __( $text, $domain = null ): string {
 	return (string) $text;
 }
 
-// Grant the team capability so the team-tier guidance (which carries the binding
-// "File, Don't Interrogate" section + the present_question posture bullet) is the
-// branch under test.
+// Grant the team capability so the team-tier guidance (which carries the filing
+// section + the present_question posture bullet) is the branch under test.
 if ( ! function_exists( 'user_can' ) ) {
 	function user_can( $user, $capability, ...$args ): bool {
 		unset( $user, $args );
@@ -86,45 +93,68 @@ require_once dirname( __DIR__ ) . '/inc/agent-mode/register.php';
 
 do_action( 'datamachine_agent_modes' );
 
-// --- 1. Mode directive (team tier) anti-loop guards ----------------------
+// --- 1. Mode directive (team tier): filing is the AFFIRMATIVE goal ---------
 
 $guidance = apply_filters( 'datamachine_agent_mode_roadie', '', array( 'calling_user_id' => 38 ) );
 $lower    = strtolower( $guidance );
 
+// Filing is framed as the goal-state / deliverable, not a boundary.
 ec_roadie_loop_assert(
-	str_contains( $guidance, "File, Don't Interrogate" ),
-	'Guidance must retain the "File, Don\'t Interrogate" filing section.'
+	str_contains( $lower, 'goal' ) && str_contains( $lower, 'filed' ),
+	'Filing guidance must frame a filed issue as the goal-state.'
+);
+ec_roadie_loop_assert(
+	str_contains( $lower, 'file_feature_request' ) && str_contains( $lower, 'forward path' ),
+	'Filing guidance must name file_feature_request as the forward path.'
+);
+// File first, refine via comment afterward — the positive shape that replaces
+// "do not loop present_question".
+ec_roadie_loop_assert(
+	str_contains( $lower, 'comment_on_issue' ) && str_contains( $lower, 'refine' ),
+	'Filing guidance must point refinement to comment_on_issue after the issue exists.'
+);
+// The tool surfaces its own repo/dedupe choices (so the model does not author a
+// preliminary present_question card before filing).
+ec_roadie_loop_assert(
+	( str_contains( $lower, 'repo' ) || str_contains( $lower, 'dedupe' ) )
+		&& str_contains( $lower, 'choices' )
+		&& str_contains( $lower, 'file_feature_request' ),
+	'Filing guidance must note file_feature_request surfaces its own repo/dedupe choices.'
 );
 
-// A hard cap on clarifying questions before filing must be present (not just a
-// soft "prefer filing"). Look for the explicit one-or-two-then-MUST-file shape.
+// present_question is described by what it IS for (a genuine one-off pick).
 ec_roadie_loop_assert(
-	( str_contains( $lower, 'one or two clarifying questions' ) || str_contains( $lower, 'one or two' ) )
-		&& str_contains( $lower, 'file_feature_request' )
-		&& str_contains( $lower, 'must' ),
-	'Guidance must impose a HARD cap (~1-2 clarifying questions) that then REQUIRES calling file_feature_request.'
+	str_contains( $lower, 'one-off' ) || str_contains( $lower, 'genuine' ),
+	'Guidance must describe present_question as a genuine one-off branching pick (positive framing).'
 );
 
-// The third-round prohibition is the crux of the fix.
+// --- 2. NO negative-prohibition scaffolding for this behavior --------------
+
+$banned_phrases = array(
+	'critical usage limits',
+	'you must call',
+	'never use `present_question`',
+	'present_question is not a filing tool',
+	'present_question` is not a filing tool',
+	'never allowed to ask a third',
+	'do not loop',
+	'do not call this repeatedly',
+);
+foreach ( $banned_phrases as $phrase ) {
+	ec_roadie_loop_assert(
+		! str_contains( $lower, $phrase ),
+		sprintf( 'Guidance must not steer with the negative prohibition "%s" (use positive framing instead).', $phrase )
+	);
+}
+
+// The card contract is stated as a FACT (the card is the turn), not as a ban on
+// restating prose.
 ec_roadie_loop_assert(
-	str_contains( $lower, 'third round' ) || str_contains( $lower, 'never allowed to ask a third' ),
-	'Guidance must explicitly forbid a third round of clarifying questions for one filing intent.'
+	str_contains( $lower, 'card is the message' ) || str_contains( $lower, 'card is your message' ) || str_contains( $lower, 'whole turn' ),
+	'Guidance must state the card contract descriptively (the rendered card is the turn).'
 );
 
-// present_question must be explicitly disqualified as a filing/interrogation tool.
-ec_roadie_loop_assert(
-	str_contains( $guidance, '`present_question` is NOT a filing tool' )
-		|| ( str_contains( $lower, 'present_question' ) && str_contains( $lower, 'not a filing tool' ) ),
-	'Guidance must state that present_question is NOT a filing tool.'
-);
-
-// Double-emit prohibition: the card renders the choices; do not also restate them.
-ec_roadie_loop_assert(
-	str_contains( $lower, 'never also restate' ) || str_contains( $lower, 'whole turn' ),
-	'Guidance must forbid restating the present_question question/choices as plain text (the double-emit).'
-);
-
-// --- 2. present_question tool description guards --------------------------
+// --- 3. present_question tool description: descriptive + forward path -------
 
 require_once dirname( __DIR__ ) . '/inc/tools/class-present-question.php';
 
@@ -136,20 +166,20 @@ $definition = ( $registered['definition'] )();
 $desc       = (string) ( $definition['description'] ?? '' );
 $desc_lower = strtolower( $desc );
 
+// Descriptive card contract — the rendered card is the turn (not "do not restate").
 ec_roadie_loop_assert(
-	str_contains( $desc_lower, 'do not call this repeatedly' )
-		|| str_contains( $desc_lower, 'not call this repeatedly' ),
-	'present_question description must warn against calling it repeatedly for one intent.'
+	str_contains( $desc_lower, 'card is the message' ) || str_contains( $desc_lower, 'card is your turn' ) || str_contains( $desc_lower, 'is your turn' ),
+	'present_question description must state the card-is-the-turn contract descriptively.'
 );
-
+// Points filing intent at file_feature_request as the forward path (positive).
 ec_roadie_loop_assert(
-	str_contains( $desc_lower, 'file_feature_request' ),
-	'present_question description must redirect filing intent to file_feature_request.'
+	str_contains( $desc_lower, 'file_feature_request' ) && str_contains( $desc_lower, 'forward path' ),
+	'present_question description must point filing intent to file_feature_request as the forward path.'
 );
-
+// No negative scaffolding on the tool either.
 ec_roadie_loop_assert(
-	str_contains( $desc_lower, 'do not' ) && str_contains( $desc_lower, 'restate' ),
-	'present_question description must forbid restating the question/choices as plain text.'
+	! str_contains( $desc_lower, 'critical usage limits' ) && ! str_contains( $desc_lower, 'do not call this repeatedly' ),
+	'present_question description must not use negative "CRITICAL USAGE LIMITS / do not call repeatedly" framing.'
 );
 
 // The tool still functions — emitting it returns the question + choices intact.
@@ -171,4 +201,4 @@ ec_roadie_loop_assert(
 	'present_question must still echo both choices under result.choices.'
 );
 
-echo "present_question loop guard smoke passed (12 assertions).\n";
+echo "present_question positive-framing smoke passed (16 assertions).\n";
