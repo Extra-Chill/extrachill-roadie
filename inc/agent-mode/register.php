@@ -60,10 +60,12 @@ add_action(
  * The filter callback receives the current directive content and the full
  * invocation payload. We append a focused mode guidance block that explains
  * the EC platform topology, the tool domains available *to this caller*, the
- * calling-user contract, editorial voice, and operating posture.
+ * calling-user contract, and operating posture. Editorial voice is NOT here —
+ * it is persona, so it lives in Roadie's SOUL.md (the identity layer), not in
+ * this operating-context mode block.
  *
- * The guidance is **role-aware**: the network topology, cross-site
- * conventions, and editorial voice are shared across all tiers, but the
+ * The guidance is **role-aware**: the network topology and cross-site
+ * conventions are shared across all tiers, but the
  * available-tools section, the operating posture, and the identity block vary
  * by the caller's role tier (public / team / admin) as resolved by
  * extrachill_roadie_user_tier(). This keeps a public visitor from being told
@@ -116,7 +118,6 @@ function extrachill_roadie_mode_guidance( string $content, array $payload ): str
  */
 function extrachill_roadie_compose_guidance( string $tier, int $calling_user_id ): string {
 	$topology = extrachill_roadie_guidance_topology();
-	$voice    = extrachill_roadie_guidance_editorial_voice();
 
 	if ( EXTRACHILL_ROADIE_TIER_PUBLIC === $tier ) {
 		$intro    = 'This context is active when you operate against the Extra Chill multisite network — a publication and community platform for independent music. You are talking to a **visitor** (not signed in, or signed in without an Extra Chill team account). Help them explore and point them toward signing in when they want to manage their own stuff.';
@@ -124,7 +125,7 @@ function extrachill_roadie_compose_guidance( string $tier, int $calling_user_id 
 		$identity = extrachill_roadie_guidance_identity_public();
 		$posture  = extrachill_roadie_guidance_posture_public();
 
-		return extrachill_roadie_assemble_guidance( $intro, $topology, $tools, $identity, $voice, $posture );
+		return extrachill_roadie_assemble_guidance( $intro, $topology, $tools, $identity, $posture );
 	}
 
 	// Team and admin share the full platform manual; the identity contract and a
@@ -138,7 +139,7 @@ function extrachill_roadie_compose_guidance( string $tier, int $calling_user_id 
 
 	$posture = extrachill_roadie_guidance_posture_team();
 
-	return extrachill_roadie_assemble_guidance( $intro, $topology, $tools, $identity, $voice, $posture );
+	return extrachill_roadie_assemble_guidance( $intro, $topology, $tools, $identity, $posture );
 }
 
 /**
@@ -150,12 +151,11 @@ function extrachill_roadie_compose_guidance( string $tier, int $calling_user_id 
  * @param string $topology Shared network-topology section.
  * @param string $tools    Tier-specific available-tools section.
  * @param string $identity Tier-specific identity-contract section.
- * @param string $voice    Shared editorial-voice section.
  * @param string $posture  Tier-specific operating-posture section.
  * @return string
  */
-function extrachill_roadie_assemble_guidance( string $intro, string $topology, string $tools, string $identity, string $voice, string $posture ): string {
-	return "# Extra Chill Platform Context\n\n{$intro}\n\n{$topology}\n\n{$tools}\n\n{$identity}\n\n{$voice}\n\n{$posture}";
+function extrachill_roadie_assemble_guidance( string $intro, string $topology, string $tools, string $identity, string $posture ): string {
+	return "# Extra Chill Platform Context\n\n{$intro}\n\n{$topology}\n\n{$tools}\n\n{$identity}\n\n{$posture}";
 }
 
 /**
@@ -186,25 +186,6 @@ Extra Chill runs as a WordPress multisite across nine subdomains. Identity (user
 - Content lives on its origin site. The tools switch blogs internally; you do not.
 - Permissions are checked against the route's target site, not the site you happen to be calling from.
 - Cross-site reads via `switch_to_blog()` are safe; writes go through REST so capability checks run in the right context.
-MD;
-}
-
-/**
- * Shared: editorial voice.
- *
- * @since 0.10.0
- * @return string
- */
-function extrachill_roadie_guidance_editorial_voice(): string {
-	return <<<'MD'
-## Editorial Voice
-
-Extra Chill is an independent, grassroots music platform — not a corporate publication. When generating content (bios, topic posts, replies, profile copy):
-
-- Music-forward, knowledgeable, approachable.
-- "Extra chill" — relaxed but focused.
-- Authentic, not promotional. Avoid marketing-speak, hype, and corporate filler.
-- Respect the user's voice. Suggest, don't overwrite.
 MD;
 }
 
