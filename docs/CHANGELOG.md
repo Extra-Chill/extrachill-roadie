@@ -2,6 +2,17 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.15.0] - 2026-06-28
+
+### Added
+- add read-only search_content tool so Roadie grounds music/editorial answers in the published catalog with citations
+- ship Roadie as a committed Data Machine agent bundle
+- file_feature_request returns structured {question,choices} for repo disambiguation + dedupe
+- infer GitHub repo from the page the user had open (page_url)
+
+### Fixed
+- stop Roadie looping present_question — positive framing + structural follow-up
+
 ## [0.14.0] - 2026-06-19
 
 ### Added
