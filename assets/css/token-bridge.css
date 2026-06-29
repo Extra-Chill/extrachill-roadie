@@ -14,9 +14,9 @@
  * overrides on the same :root vars, so this bridge resolves dark mode
  * automatically at use-site — no `.dark` class wiring required here.
  *
- * Token surface (upstream from frontend-agent-chat 0.15.x — [TODO: confirm
- * FAC version on release of the companion PR
- * `fix/agenttic-token-bridge-complete`]):
+ * Token surface (upstream from the expanded frontend-agent-chat token bridge,
+ * Automattic/frontend-agent-chat#113 — [TODO: pin the FAC version once #113
+ * is released]):
  *   FAB:        --frontend-agent-chat-fab-{bg,color,border-color,font-size,offset,badge-bg}
  *   Drawer:     --frontend-agent-chat-drawer-{bg,width}
  *   Surface:    --frontend-agent-chat-{accent,text-primary,text-muted,border-color,bg-muted,
