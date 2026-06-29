@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.16.1] - 2026-06-29
+
+### Changed
+- Expand EC token bridge to cover full FAC/agenttic token surface
+
 ## [0.15.0] - 2026-06-28
 
 ### Added

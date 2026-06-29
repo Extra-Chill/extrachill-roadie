@@ -3,7 +3,7 @@
  * Plugin Name: Extra Chill Roadie
  * Plugin URI: https://extrachill.com
  * Description: Extra Chill platform integration for Frontend Agent Chat. Registers a role-aware tool surface via the datamachine_tools filter — artist profiles, link pages, user profiles, and community forums, plus team-gated GitHub issue filing and sandbox-backed code contributions — and bridges EC theme tokens into the chat widget.
- * Version: 0.16.0
+ * Version: 0.16.1
  * Author: Chris Huber
  * Author URI: https://chubes.net
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'EXTRACHILL_ROADIE_VERSION', '0.16.0' );
+define( 'EXTRACHILL_ROADIE_VERSION', '0.16.1' );
 define( 'EXTRACHILL_ROADIE_PLUGIN_FILE', __FILE__ );
 define( 'EXTRACHILL_ROADIE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
