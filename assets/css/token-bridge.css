@@ -9,21 +9,38 @@
  * Agents API abilities, not Data Machine internals. The token bridge
  * lives here in Roadie (the EC platform consumer), never in FAC.
  *
- * Token surface (upstream from frontend-agent-chat 0.13.x):
- *   FAB:       --frontend-agent-chat-fab-{bg,color,border-color,font-size,offset,badge-bg}
- *   Drawer:    --frontend-agent-chat-drawer-{bg,width}
- *   Surface:   --frontend-agent-chat-{accent,text-primary,text-muted,border-color,bg-muted}
- *   Typography:--frontend-agent-chat-{font-family,header-font-family,font-size,header-font-size}
- *   Spacing:   --frontend-agent-chat-spacing-{xs,sm,md,lg}
- *   Surfaces:  --frontend-agent-chat-{input-bg,message-bg,warning-bg,warning-text}
- *   Status:    --frontend-agent-chat-{error-bg,error-border,error-detail-bg,error-text,
- *              success-bg,success-border,success-text,accent-border,accent-soft-bg,muted-bg}
- *              (chat 0.9–0.13: tool-card error states, artifact/generation status pills,
- *              image thumbnails)
+ * EC source vars are declared on :root by Extra-Chill/extrachill-tokens
+ * (v0.8.1). Dark mode is handled there via `@media (prefers-color-scheme: dark)`
+ * overrides on the same :root vars, so this bridge resolves dark mode
+ * automatically at use-site — no `.dark` class wiring required here.
  *
- * Left to package defaults (non-branding/structural): --frontend-agent-chat-admin-bar-offset
- * (self-managed from --wp-admin--admin-bar--height), --frontend-agent-chat-fab-offset
- * (structural), --frontend-agent-chat-monospace-font-family (no EC mono var).
+ * Token surface (upstream from frontend-agent-chat 0.15.x — [TODO: confirm
+ * FAC version on release of the companion PR
+ * `fix/agenttic-token-bridge-complete`]):
+ *   FAB:        --frontend-agent-chat-fab-{bg,color,border-color,font-size,offset,badge-bg}
+ *   Drawer:     --frontend-agent-chat-drawer-{bg,width}
+ *   Surface:    --frontend-agent-chat-{accent,text-primary,text-muted,border-color,bg-muted,
+ *               input-bg,message-bg,warning-bg,warning-text}
+ *   Status:     --frontend-agent-chat-{link,error,error-background,success,success-background,
+ *               warning,warning-background,on-accent,error-bg,error-border,error-detail-bg,
+ *               error-text,success-bg,success-border,success-text,accent-border,
+ *               accent-soft-bg,muted-bg}
+ *   Typography: --frontend-agent-chat-{font-family,header-font-family,font-size,
+ *               header-font-size,font-weight-medium,font-weight-semibold,
+ *               font-weight-bold,text-xs,text-sm,text-base}
+ *   Radii:      --frontend-agent-chat-radius{,-xs,-sm,-md,-lg,-xl}
+ *   Shadows:    --frontend-agent-chat-shadow-{sm,lg}
+ *   Spacing:    --frontend-agent-chat-spacing-{xs,sm,md,lg}
+ *
+ * Left to package defaults (non-branding/structural or no EC source):
+ *   --frontend-agent-chat-admin-bar-offset (self-managed from
+ *     --wp-admin--admin-bar--height)
+ *   --frontend-agent-chat-fab-offset (structural)
+ *   --frontend-agent-chat-monospace-font-family (EC's --font-family-mono is
+ *     a sans-serif placeholder, not a real mono stack — skip)
+ *   --frontend-agent-chat-radius-full (structural full-pill, not brand)
+ *   --frontend-agent-chat-shadow-outline{,-strong} (focus-ring styling,
+ *     owned by FAC focus defaults)
  *
  * @package ExtraChillRoadie
  * @since 0.6.0
@@ -51,14 +68,53 @@
 	--frontend-agent-chat-bg-muted: var(--background-color, #f8f9fa);
 	--frontend-agent-chat-input-bg: var(--background-color, #f8f9fa);
 	--frontend-agent-chat-message-bg: var(--card-background, #f9f9f9);
-	--frontend-agent-chat-warning-bg: var(--error-color, #d63638);
-	--frontend-agent-chat-warning-text: #fff;
+	/* Real warning palette from EC (was previously a workaround that
+	 * aliased --error-color red with hardcoded #fff text because EC
+	 * had no warning surface in scope at the time). */
+	--frontend-agent-chat-warning-bg: var(--warning-bg, rgba(217, 119, 6, 0.1));
+	--frontend-agent-chat-warning-text: var(--warning-color, #d97706);
+
+	/* ── Status colors (semantic) ───────────────────────── */
+	/* Single-token semantic colors introduced by the expanded FAC surface.
+	 * Inline links, status text, and "on accent" foreground get the EC
+	 * brand colors directly so they read native in both light and dark. */
+	--frontend-agent-chat-link: var(--link-color, #0b5394);
+	--frontend-agent-chat-error: var(--error-color, #dc3232);
+	--frontend-agent-chat-error-background: var(--card-background, #fef2f2);
+	--frontend-agent-chat-success: var(--success-color, #28a745);
+	--frontend-agent-chat-success-background: var(--card-background, #f0fdf4);
+	--frontend-agent-chat-warning: var(--warning-color, #d97706);
+	--frontend-agent-chat-warning-background: var(--warning-bg, rgba(217, 119, 6, 0.1));
+	--frontend-agent-chat-on-accent: var(--button-text-color, #fff);
 
 	/* ── Typography ─────────────────────────────────────── */
 	--frontend-agent-chat-font-family: var(--font-family-body, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
 	--frontend-agent-chat-header-font-family: var(--font-family-heading, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
 	--frontend-agent-chat-font-size: var(--font-size-base, 15px);
 	--frontend-agent-chat-header-font-size: 18px;
+
+	/* ── Typography scale ───────────────────────────────── */
+	/* Weight + size ramp from the expanded FAC surface. EC's --font-size-xs
+	 * (0.625rem) is too small for chat body copy, so --text-xs is mapped
+	 * to --font-size-sm intentionally. */
+	--frontend-agent-chat-font-weight-medium: var(--font-weight-medium, 500);
+	--frontend-agent-chat-font-weight-semibold: var(--font-weight-semibold, 600);
+	--frontend-agent-chat-font-weight-bold: var(--font-weight-bold, 700);
+	--frontend-agent-chat-text-xs: var(--font-size-sm, 0.8125rem);
+	--frontend-agent-chat-text-sm: var(--font-size-sm, 0.8125rem);
+	--frontend-agent-chat-text-base: var(--font-size-base, 1rem);
+
+	/* ── Radii ──────────────────────────────────────────── */
+	--frontend-agent-chat-radius: var(--border-radius-md, 8px);
+	--frontend-agent-chat-radius-xs: var(--border-radius-sm, 5px);
+	--frontend-agent-chat-radius-sm: var(--border-radius-sm, 5px);
+	--frontend-agent-chat-radius-md: var(--border-radius-md, 8px);
+	--frontend-agent-chat-radius-lg: var(--border-radius-lg, 10px);
+	--frontend-agent-chat-radius-xl: var(--border-radius-xl, 14px);
+
+	/* ── Shadows ────────────────────────────────────────── */
+	--frontend-agent-chat-shadow-sm: var(--card-shadow, 0 2px 6px rgba(0, 0, 0, 0.08));
+	--frontend-agent-chat-shadow-lg: var(--card-hover-shadow, 0 4px 12px rgba(0, 0, 0, 0.1));
 
 	/* ── Spacing ────────────────────────────────────────── */
 	--frontend-agent-chat-spacing-xs: var(--spacing-xs, 8px);
