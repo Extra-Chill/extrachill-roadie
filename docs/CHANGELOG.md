@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.17.1] - 2026-06-29
+
+### Changed
+- Refine chat bubble structure, tune text size, drop migrated tokens
+
 ## [0.16.1] - 2026-06-29
 
 ### Changed
