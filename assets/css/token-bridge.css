@@ -14,17 +14,14 @@
  * overrides on the same :root vars, so this bridge resolves dark mode
  * automatically at use-site — no `.dark` class wiring required here.
  *
- * Token surface (upstream from frontend-agent-chat 0.15.x — [TODO: confirm
- * FAC version on release of the companion PR
- * `fix/agenttic-token-bridge-complete`]):
+ * Token surface (single semantic family — FAC's agenttic surface and its
+ * own chrome both consume these after the chrome token migration):
  *   FAB:        --frontend-agent-chat-fab-{bg,color,border-color,font-size,offset,badge-bg}
  *   Drawer:     --frontend-agent-chat-drawer-{bg,width}
  *   Surface:    --frontend-agent-chat-{accent,text-primary,text-muted,border-color,bg-muted,
- *               input-bg,message-bg,warning-bg,warning-text}
+ *               input-bg,message-bg}
  *   Status:     --frontend-agent-chat-{link,error,error-background,success,success-background,
- *               warning,warning-background,on-accent,error-bg,error-border,error-detail-bg,
- *               error-text,success-bg,success-border,success-text,accent-border,
- *               accent-soft-bg,muted-bg}
+ *               warning,warning-background,on-accent}
  *   Typography: --frontend-agent-chat-{font-family,header-font-family,font-size,
  *               header-font-size,font-weight-medium,font-weight-semibold,
  *               font-weight-bold,text-xs,text-sm,text-base}
@@ -57,7 +54,11 @@
 	--frontend-agent-chat-fab-badge-bg: var(--error-color, #d63638);
 
 	/* ── Drawer ─────────────────────────────────────────── */
-	--frontend-agent-chat-drawer-bg: var(--card-background, #f1f5f9);
+	/* The drawer/conversation area sits on the page background so the
+	 * assistant message bubbles (mapped to --card-background below) read as
+	 * raised cards against it. Mapping both to --card-background flattened
+	 * the bubbles into the conversation area with no structure. */
+	--frontend-agent-chat-drawer-bg: var(--background-color, #f8f9fa);
 	--frontend-agent-chat-drawer-width: 420px;
 
 	/* ── Surface colors ─────────────────────────────────── */
@@ -65,14 +66,11 @@
 	--frontend-agent-chat-text-primary: var(--text-color, #333);
 	--frontend-agent-chat-text-muted: var(--muted-text, #757575);
 	--frontend-agent-chat-border-color: var(--border-color, #dcdcde);
-	--frontend-agent-chat-bg-muted: var(--background-color, #f8f9fa);
-	--frontend-agent-chat-input-bg: var(--background-color, #f8f9fa);
+	--frontend-agent-chat-bg-muted: var(--card-background, #f1f5f9);
+	--frontend-agent-chat-input-bg: var(--card-background, #f1f5f9);
+	/* Assistant bubbles use the raised card surface so they stand out from
+	 * the page-background conversation area. */
 	--frontend-agent-chat-message-bg: var(--card-background, #f9f9f9);
-	/* Real warning palette from EC (was previously a workaround that
-	 * aliased --error-color red with hardcoded #fff text because EC
-	 * had no warning surface in scope at the time). */
-	--frontend-agent-chat-warning-bg: var(--warning-bg, rgba(217, 119, 6, 0.1));
-	--frontend-agent-chat-warning-text: var(--warning-color, #d97706);
 
 	/* ── Status colors (semantic) ───────────────────────── */
 	/* Single-token semantic colors introduced by the expanded FAC surface.
@@ -90,19 +88,23 @@
 	/* ── Typography ─────────────────────────────────────── */
 	--frontend-agent-chat-font-family: var(--font-family-body, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
 	--frontend-agent-chat-header-font-family: var(--font-family-heading, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
-	--frontend-agent-chat-font-size: var(--font-size-base, 15px);
+	/* Chat body copy reads slightly tighter than EC's 1rem base; 0.9375rem
+	 * (15px) matches agenttic's own --text-base and feels right in the
+	 * narrow drawer. */
+	--frontend-agent-chat-font-size: 0.9375rem;
 	--frontend-agent-chat-header-font-size: 18px;
 
 	/* ── Typography scale ───────────────────────────────── */
-	/* Weight + size ramp from the expanded FAC surface. EC's --font-size-xs
-	 * (0.625rem) is too small for chat body copy, so --text-xs is mapped
-	 * to --font-size-sm intentionally. */
+	/* Weight + size ramp from the expanded FAC surface. The chat surface runs
+	 * one step tighter than EC's page scale: body copy at 0.9375rem (15px),
+	 * smaller labels at --font-size-sm (0.8125rem). EC's --font-size-xs
+	 * (0.625rem) is too small for chat, so --text-xs also maps to --font-size-sm. */
 	--frontend-agent-chat-font-weight-medium: var(--font-weight-medium, 500);
 	--frontend-agent-chat-font-weight-semibold: var(--font-weight-semibold, 600);
 	--frontend-agent-chat-font-weight-bold: var(--font-weight-bold, 700);
 	--frontend-agent-chat-text-xs: var(--font-size-sm, 0.8125rem);
 	--frontend-agent-chat-text-sm: var(--font-size-sm, 0.8125rem);
-	--frontend-agent-chat-text-base: var(--font-size-base, 1rem);
+	--frontend-agent-chat-text-base: 0.9375rem;
 
 	/* ── Radii ──────────────────────────────────────────── */
 	--frontend-agent-chat-radius: var(--border-radius-md, 8px);
@@ -121,21 +123,4 @@
 	--frontend-agent-chat-spacing-sm: var(--spacing-sm, 12px);
 	--frontend-agent-chat-spacing-md: var(--spacing-md, 16px);
 	--frontend-agent-chat-spacing-lg: var(--spacing-lg, 24px);
-
-	/* ── Status / tool-card surfaces (chat 0.9–0.13) ────── */
-	/* Tool-card error states, artifact/generation status pills, image
-	 * thumbnails. Map to EC brand error/success/accent so these newer
-	 * surfaces read on-brand instead of the package's slate/red/green
-	 * defaults. Soft backgrounds use --card-background (neutral, readable)
-	 * rather than colored tints to stay legible in EC light + dark modes. */
-	--frontend-agent-chat-error-bg: var(--card-background, #fef2f2);
-	--frontend-agent-chat-error-border: var(--error-color, #fecaca);
-	--frontend-agent-chat-error-detail-bg: var(--card-background, #fee2e2);
-	--frontend-agent-chat-error-text: var(--error-color, #b91c1c);
-	--frontend-agent-chat-accent-border: var(--accent, #93c5fd);
-	--frontend-agent-chat-accent-soft-bg: var(--card-background, #eff6ff);
-	--frontend-agent-chat-success-bg: var(--card-background, #f0fdf4);
-	--frontend-agent-chat-success-border: var(--success-color, #bbf7d0);
-	--frontend-agent-chat-success-text: var(--success-color, #15803d);
-	--frontend-agent-chat-muted-bg: var(--background-color, #f8f9fa);
 }
