@@ -1,7 +1,7 @@
 {
     "agent": {
         "agent_config": {
-            "default_model": "gpt-5.4-nano",
+            "default_model": "gpt-5.5",
             "default_provider": "openai",
             "description": "Your Extra Chill assistant. Ask about artist profiles, link pages, community, and more.",
             "tool_policy": {
