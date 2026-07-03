@@ -73,4 +73,45 @@ $GLOBALS['extrachill_roadie_test_logged_in'] = true;
 $logged_in = apply_filters( 'frontend_agent_chat_config', array( 'agent_slug' => 'roadie' ) );
 roadie_smoke_assert( ! empty( $logged_in['fab_greeting'] ) && $logged_in['fab_greeting'] !== ( $logged_out['fab_greeting'] ?? '' ), 'Signed-in callers should get a distinct working-assistant greeting.' );
 
-echo "Roadie frontend chat branding smoke passed (5 assertions).\n";
+// Page-awareness guidance: the directive-outputs filter should append a
+// system_text guidance block ONLY when page_url is present in client_context,
+// and must reference the page url and the inspect_page tool.
+$base_output = array(
+	array(
+		'type'    => 'system_text',
+		'content' => "# Current Client Context\n\n- page url: https://events.extrachill.com/",
+	),
+);
+
+$with_page = apply_filters(
+	'datamachine_client_context_directive_outputs',
+	$base_output,
+	array(
+		'page_url'   => 'https://events.extrachill.com/',
+		'page_title' => 'Events Calendar',
+	)
+);
+roadie_smoke_assert( count( $with_page ) === count( $base_output ) + 1, 'Page-awareness guidance should append one output when page_url is present.' );
+$page_guidance = (string) ( $with_page[ count( $with_page ) - 1 ]['content'] ?? '' );
+roadie_smoke_assert( false !== strpos( $page_guidance, 'https://events.extrachill.com/' ), 'Page-awareness guidance should embed the current page url.' );
+roadie_smoke_assert( false !== strpos( $page_guidance, 'Events Calendar' ), 'Page-awareness guidance should embed the current page title when present.' );
+roadie_smoke_assert( false !== strpos( $page_guidance, 'inspect_page' ), 'Page-awareness guidance should point at the inspect_page tool.' );
+roadie_smoke_assert( false !== strpos( $page_guidance, 'authoritative' ), 'Page-awareness guidance should assert the page is authoritative.' );
+
+// Guardrail: no page_url means no guidance appended.
+$no_page = apply_filters(
+	'datamachine_client_context_directive_outputs',
+	$base_output,
+	array( 'site' => 'Extra Chill' )
+);
+roadie_smoke_assert( count( $no_page ) === count( $base_output ), 'Page-awareness guidance must NOT append when page_url is absent.' );
+
+// Empty page_url string is treated as absent.
+$empty_page = apply_filters(
+	'datamachine_client_context_directive_outputs',
+	$base_output,
+	array( 'page_url' => '' )
+);
+roadie_smoke_assert( count( $empty_page ) === count( $base_output ), 'Page-awareness guidance must NOT append when page_url is empty.' );
+
+echo "Roadie frontend chat branding smoke passed (11 assertions).\n";
