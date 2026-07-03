@@ -168,3 +168,68 @@ function extrachill_roadie_build_client_context( array $client_context, $request
 
 	return $client_context;
 }
+
+/**
+ * Append page-awareness guidance to the client-context directive output.
+ *
+ * The plumbing above populates `client_context['page_url']` (and `page_title`)
+ * with the page the user is actually viewing, and Data Machine's
+ * ClientContextDirective renders those as bare `- page url: <value>` lines under
+ * a generic "Current Client Context" heading. But nothing tells the agent that
+ * those lines ARE the current page — so when a user says "this page" / "what am
+ * I looking at" / "file an issue about this," Roadie disclaims ("I can't see
+ * what page you're looking at") instead of using the URL sitting in its prompt.
+ *
+ * This is the EC-scoped, symmetric analog to Data Machine's built-in editor
+ * guidance (build_editor_guidance()): a short, high-signal directive block
+ * appended to the directive outputs when — and only when — `page_url` is present
+ * in client_context. Layer purity: the EC-specific phrasing lives here in
+ * extrachill-roadie, not in the generic ClientContextDirective. We hook the
+ * `datamachine_client_context_directive_outputs` filter (the cleanest join to
+ * the presence of page_url) rather than baking it into the roadie mode block,
+ * because the mode block runs even when no page context is present.
+ *
+ * @since 0.15.0
+ *
+ * @param array  $outputs        Directive outputs (system_text entries).
+ * @param array  $client_context Full client context payload.
+ * @return array Outputs, possibly with page-awareness guidance appended.
+ */
+function extrachill_roadie_page_awareness_guidance( $outputs, $client_context ): array {
+	if ( ! is_array( $outputs ) ) {
+		return is_array( $outputs ) ? $outputs : array();
+	}
+
+	// Guardrail: only assert page awareness when the page URL is actually
+	// present. Never tell the agent it can "see the page" on an empty context.
+	if ( ! is_array( $client_context ) || empty( $client_context['page_url'] ) ) {
+		return $outputs;
+	}
+
+	$page_url   = (string) $client_context['page_url'];
+	$page_title = isset( $client_context['page_title'] ) ? (string) $client_context['page_title'] : '';
+
+	$lines   = array();
+	$lines[] = '## Current Page The User Is Viewing';
+	$lines[] = '';
+	$lines[] = 'Treat the `page url` (and `page title`) in the client context above as the authoritative page the user is currently viewing in their browser — this is what they mean by "this page", "the page I\'m on", or "what I\'m looking at".';
+	$lines[] = 'When the user refers to the current page ("what page am I on?", "file an issue about this page", "the calendar on this page looks broken"), use that `page url` directly — do NOT ask them to paste a URL you already have.';
+	$lines[] = 'If you need the page\'s actual contents or layout, call the `inspect_page` tool: it reads the rendered DOM of that `page url` by default, so you can ground page-specific answers and feedback in what is really on screen instead of guessing.';
+	$lines[] = 'Only ask the user for a URL if `page url` is missing or they explicitly point you at a different page.';
+	$lines[] = '';
+	$lines[] = sprintf( '- current page url: %s', $page_url );
+
+	if ( '' !== $page_title ) {
+		$lines[] = sprintf( '- current page title: %s', $page_title );
+	}
+
+	$guidance = implode( "\n", $lines );
+
+	$outputs[] = array(
+		'type'    => 'system_text',
+		'content' => $guidance,
+	);
+
+	return $outputs;
+}
+add_filter( 'datamachine_client_context_directive_outputs', 'extrachill_roadie_page_awareness_guidance', 10, 2 );
