@@ -2,6 +2,14 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.18.0] - 2026-07-03
+
+### Added
+- teach Roadie to treat page_url as the authoritative current page
+
+### Fixed
+- bump Roadie chat model from gpt-5.4-nano to gpt-5.5
+
 ## [0.17.1] - 2026-06-29
 
 ### Changed
