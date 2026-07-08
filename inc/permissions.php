@@ -160,6 +160,94 @@ function extrachill_roadie_team_access_bridge( bool $can_access, int $agent_id, 
 add_filter( 'datamachine_can_access_agent', 'extrachill_roadie_team_access_bridge', 10, 4 );
 
 /**
+ * Check whether the current user may see the Roadie chat surface at all.
+ *
+ * Widget visibility policy: Roadie is a team tool. Only signed-in users
+ * whose tier resolves to `team` or `admin` (extrachill_roadie_user_tier())
+ * get the chat widget, the REST chat surface, or Roadie in the agent
+ * selector. Public visitors and non-team accounts see nothing.
+ *
+ * This intentionally supersedes the earlier public/team/admin *prompt*
+ * tiering for the frontend widget: the tier system still shapes the tool
+ * surface for allowed callers, but the public tier is no longer reachable
+ * through the frontend widget.
+ *
+ * @since 0.19.0
+ *
+ * @return bool Whether the current user may see Roadie chat surfaces.
+ */
+function extrachill_roadie_current_user_can_see_widget(): bool {
+	if ( ! is_user_logged_in() ) {
+		return false;
+	}
+
+	$tier = extrachill_roadie_user_tier( get_current_user_id() );
+
+	return EXTRACHILL_ROADIE_TIER_TEAM === $tier || EXTRACHILL_ROADIE_TIER_ADMIN === $tier;
+}
+
+/**
+ * Gate frontend chat widget visibility for the Roadie agent.
+ *
+ * Hooks Frontend Agent Chat's visibility decision (`frontend_agent_chat_user_can_see`)
+ * and denies the Roadie agent to anyone who is not a signed-in team member or
+ * administrator. Other agents (if any are ever exposed through the widget) are
+ * unaffected — this is Roadie policy, not a global widget kill-switch.
+ *
+ * @since 0.19.0
+ *
+ * @param bool       $allowed Access decision from Agents API.
+ * @param array|null $agent   Resolved agent descriptor.
+ * @return bool
+ */
+function extrachill_roadie_gate_widget_visibility( bool $allowed, ?array $agent ): bool {
+	if ( ! $allowed ) {
+		return $allowed;
+	}
+
+	$agent_slug = sanitize_title( (string) ( $agent['agent_slug'] ?? $agent['slug'] ?? '' ) );
+	if ( EXTRACHILL_ROADIE_AGENT_SLUG !== $agent_slug ) {
+		return $allowed;
+	}
+
+	return extrachill_roadie_current_user_can_see_widget();
+}
+add_filter( 'frontend_agent_chat_user_can_see', 'extrachill_roadie_gate_widget_visibility', 10, 2 );
+
+/**
+ * Strip Roadie from the frontend chat agent selector for non-team callers.
+ *
+ * The widget enqueue path renders whenever the accessible-agents list is
+ * non-empty, so the selector list is the load-bearing gate for whether the
+ * FAB appears at all. Same policy as extrachill_roadie_gate_widget_visibility().
+ *
+ * @since 0.19.0
+ *
+ * @param array $agents Accessible agents for the frontend selector.
+ * @return array
+ */
+function extrachill_roadie_gate_widget_agent_list( $agents ): array {
+	if ( ! is_array( $agents ) ) {
+		return array();
+	}
+
+	if ( extrachill_roadie_current_user_can_see_widget() ) {
+		return $agents;
+	}
+
+	return array_values(
+		array_filter(
+			$agents,
+			static function ( $agent ): bool {
+				$agent_slug = sanitize_title( (string) ( $agent['agent_slug'] ?? $agent['slug'] ?? '' ) );
+				return EXTRACHILL_ROADIE_AGENT_SLUG !== $agent_slug;
+			}
+		)
+	);
+}
+add_filter( 'frontend_agent_chat_accessible_agents', 'extrachill_roadie_gate_widget_agent_list', 10, 1 );
+
+/**
  * Map Data Machine Events' write capability to the EC team cap.
  *
  * data-machine-events defaults its write gate to `edit_others_posts`
