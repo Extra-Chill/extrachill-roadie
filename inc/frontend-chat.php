@@ -23,16 +23,10 @@ function extrachill_roadie_frontend_chat_config( array $config ): array {
 
 	$config['fab_label'] = EXTRACHILL_ROADIE_AGENT_NAME;
 
-	// Role-aware greeting: signed-in team/admin callers get the working-assistant
-	// framing; logged-out visitors get an explore-oriented nudge that matches the
-	// public-tier guidance + tool surface. Keyed on login state only (the FAB is
-	// rendered before any chat turn, so the per-turn calling_user_id isn't yet
-	// available here) — this is the cheap, correct signal for the launcher label.
-	if ( ! is_user_logged_in() ) {
-		$config['fab_greeting'] = __( 'New here? Ask me about Extra Chill — or sign in to manage your profile.', 'extrachill-roadie' );
-	} else {
-		$config['fab_greeting'] = __( 'Hey — what can I help you with on Extra Chill?', 'extrachill-roadie' );
-	}
+	// The widget is team-only (extrachill_roadie_gate_widget_visibility()), so
+	// every caller who actually sees this greeting is a signed-in team member
+	// or admin — one working-assistant framing covers the whole audience.
+	$config['fab_greeting'] = __( 'Hey — what can I help you with on Extra Chill?', 'extrachill-roadie' );
 
 	// Suppress the generic "AI" leading-icon label; Roadie ships with no FAB icon yet.
 	// When a Roadie brand mark is ready, set this to an SVG path string instead.
