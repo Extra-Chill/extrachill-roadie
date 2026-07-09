@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.18.2] - 2026-07-09
+
+### Fixed
+- assert positive zero-result search guidance instead of the removed negative literal
+
 ## [0.18.1] - 2026-07-09
 
 ### Changed
