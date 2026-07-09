@@ -270,16 +270,29 @@ roadie_test_assert( false === ( $wp_err['success'] ?? null ), 'ability WP_Error 
 
 // =====================================================================
 // Zero results: honest, no fabricated coverage, no citations
+//
+// The zero-result next_step must keep the model from inventing catalog
+// coverage, but it states that as a POSITIVE scoping rule (a zero match
+// bounds the PUBLISHED CATALOG only), not a negative "do not X" constraint —
+// negative constraints in a prompt are an engineering-gap smell. So the
+// assertion checks the intent (the guidance scopes the miss to the catalog
+// and does NOT force a blanket disclaimer of everything the agent knows),
+// not a specific "do not fabricate" literal.
 // =====================================================================
 
 $GLOBALS['extrachill_roadie_test_state']['search_ability'] = new Roadie_Fake_Search_Ability( array() );
-$empty = $tool->handle_tool_call( array( 'query' => 'no such artist 9xz' ) );
+$empty     = $tool->handle_tool_call( array( 'query' => 'no such artist 9xz' ) );
+$empty_next = (string) ( $empty['data']['next_step'] ?? '' );
 roadie_test_assert( true === ( $empty['success'] ?? null ), 'zero-result search still succeeds' );
 roadie_test_assert( 0 === ( $empty['data']['count'] ?? -1 ), 'zero results reported as count 0' );
 roadie_test_assert( array() === ( $empty['metadata']['citations'] ?? null ), 'no citations on a zero-result search' );
 roadie_test_assert(
-	false !== stripos( (string) ( $empty['data']['next_step'] ?? '' ), 'do not fabricate' ),
-	'zero-result next_step forbids fabricating coverage/quotes'
+	false !== stripos( $empty_next, 'catalog' ),
+	'zero-result next_step scopes the miss to the published catalog'
+);
+roadie_test_assert(
+	false !== stripos( $empty_next, 'identity' ),
+	'zero-result next_step preserves the agent\'s own identity as still-answerable'
 );
 
 echo 'Roadie search_content tool smoke passed.' . PHP_EOL;
