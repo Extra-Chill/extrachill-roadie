@@ -2,6 +2,14 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.18.1] - 2026-07-09
+
+### Changed
+- Gate the Roadie frontend widget to signed-in team members
+
+### Fixed
+- route identity/self questions to Roadie's own identity instead of catalog search
+
 ## [0.18.0] - 2026-07-03
 
 ### Added
