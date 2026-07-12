@@ -20,6 +20,11 @@ function ec_roadie_test_reset(): void {
 	$GLOBALS['ec_roadie_test_rest_calls']      = array();
 	$GLOBALS['ec_roadie_test_registered_tools'] = $GLOBALS['ec_roadie_test_registered_tools'] ?? array();
 	$GLOBALS['ec_roadie_test_rest_response']   = array( 'ok' => true );
+	$GLOBALS['ec_roadie_test_ability_calls']   = array();
+	$GLOBALS['ec_roadie_test_ability_results'] = array(
+		'extrachill/get-user-settings'    => array( 'local_scene_visibility' => 'public' ),
+		'extrachill/update-user-settings' => array( 'success' => true ),
+	);
 }
 
 ec_roadie_test_reset();
@@ -72,6 +77,25 @@ class WP_Error {
 	public function get_error_message(): string {
 		return $this->message;
 	}
+}
+
+class ECRoadie_Test_Ability {
+	private string $name;
+	public function __construct( string $name ) {
+		$this->name = $name;
+	}
+	public function execute( array $input ) {
+		$GLOBALS['ec_roadie_test_ability_calls'][] = array(
+			'name'           => $this->name,
+			'input'          => $input,
+			'effective_user' => get_current_user_id(),
+		);
+		return $GLOBALS['ec_roadie_test_ability_results'][ $this->name ] ?? new WP_Error( 'missing_ability_result', 'Missing test ability result.' );
+	}
+}
+
+function wp_get_ability( string $name ) {
+	return array_key_exists( $name, $GLOBALS['ec_roadie_test_ability_results'] ) ? new ECRoadie_Test_Ability( $name ) : null;
 }
 
 function sprintf_safe( string $format, ...$args ): string {

@@ -43,13 +43,13 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 		return array(
 			'class'       => self::class,
 			'method'      => 'handle_tool_call',
-			'description' => 'Manage a user\'s Extra Chill profile. Defaults to the calling user. Admins can target another user by passing user_id. Can get profile details, update bio/title/city, or replace profile links. Profile links are different from artist link pages — these are the links shown on the user\'s community profile.',
+			'description' => 'Manage a user\'s Extra Chill profile. Defaults to the calling user. Admins can target another user by passing user_id. Can get profile details, update bio/title/local scene and its visibility, or replace profile links. Profile links are different from artist link pages — these are the links shown on the user\'s community profile.',
 			'parameters'  => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'       => array(
 						'type'        => 'string',
-						'description' => 'Action: "get" (view profile), "update" (update bio, title, or city), "update_links" (replace profile links)',
+						'description' => 'Action: "get" (view profile), "update" (update bio, title, local scene, or local scene visibility), "update_links" (replace profile links)',
 					),
 					'user_id'      => array(
 						'type'        => 'integer',
@@ -63,9 +63,18 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 						'type'        => 'string',
 						'description' => 'User bio/description. HTML is allowed. Used in "update".',
 					),
-					'local_city'   => array(
+					'local_scene' => array(
 						'type'        => 'string',
-						'description' => 'User\'s city (e.g. "Austin, TX"). Used in "update".',
+						'description' => 'Canonical Events location slug for the user\'s Local Scene. Pass an empty string to clear it. Used in "update".',
+					),
+					'local_scene_visibility' => array(
+						'type'        => 'string',
+						'enum'        => array( 'public', 'private' ),
+						'description' => 'Whether the Local Scene appears on the user\'s public profile. Used in "update".',
+					),
+					'local_city' => array(
+						'type'        => 'string',
+						'description' => 'Compatibility alias for local_scene. Values are resolved as canonical Events location slugs; this does not update artist local_city.',
 					),
 					'links'        => array(
 						'type'        => 'array',
@@ -111,9 +120,26 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 	 * user for the duration of the call when `user_id` is supplied.
 	 */
 	private function handle_get( int $acting_user_id ): array {
-		return $this->rest_request( 'GET', '/users/me/profile', array(
+		$profile = $this->rest_request( 'GET', '/users/me/profile', array(
 			'user_id' => $acting_user_id,
 		) );
+		if ( ! ( $profile['success'] ?? false ) ) {
+			return $profile;
+		}
+
+		$settings = $this->execute_user_ability( 'extrachill/get-user-settings', array(), $acting_user_id );
+		if ( is_wp_error( $settings ) ) {
+			return $this->buildErrorResponse( $settings->get_error_message(), 'manage_user_profile' );
+		}
+
+		$visibility = $settings['local_scene_visibility'] ?? 'private';
+		$profile['data']['local_scene_visibility'] = $visibility;
+		if ( 'public' !== $visibility ) {
+			$profile['data']['local_scene'] = null;
+			$profile['data']['local_city']  = '';
+		}
+
+		return $profile;
 	}
 
 	/**
@@ -122,30 +148,72 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 	private function handle_update( array $parameters, int $acting_user_id ): array {
 		$body = array();
 
-		$fields = array( 'custom_title', 'bio', 'local_city' );
+		$fields = array( 'custom_title', 'bio' );
 		foreach ( $fields as $field ) {
 			if ( array_key_exists( $field, $parameters ) ) {
 				$body[ $field ] = $parameters[ $field ];
 			}
 		}
 
-		if ( empty( $body ) ) {
+		$settings = array();
+		if ( array_key_exists( 'local_scene', $parameters ) ) {
+			$settings['local_scene'] = $parameters['local_scene'];
+		} elseif ( array_key_exists( 'local_city', $parameters ) ) {
+			$settings['local_scene'] = $parameters['local_city'];
+		}
+		if ( array_key_exists( 'local_scene_visibility', $parameters ) ) {
+			$settings['local_scene_visibility'] = $parameters['local_scene_visibility'];
+		}
+
+		if ( empty( $body ) && empty( $settings ) ) {
 			return $this->buildErrorResponse(
-				'At least one field is required: custom_title, bio, or local_city.',
+				'At least one field is required: custom_title, bio, local_scene, or local_scene_visibility.',
 				'manage_user_profile'
 			);
 		}
 
-		$result = $this->rest_request( 'POST', '/users/me/profile', array(
-			'body'    => $body,
-			'user_id' => $acting_user_id,
-		) );
-
-		if ( $result['success'] ?? false ) {
-			$result['message'] = 'Profile updated successfully.';
+		if ( ! empty( $body ) ) {
+			$result = $this->rest_request( 'POST', '/users/me/profile', array(
+				'body'    => $body,
+				'user_id' => $acting_user_id,
+			) );
+			if ( ! ( $result['success'] ?? false ) ) {
+				return $result;
+			}
 		}
 
-		return $result;
+		if ( ! empty( $settings ) ) {
+			$ability_result = $this->execute_user_ability( 'extrachill/update-user-settings', $settings, $acting_user_id );
+			if ( is_wp_error( $ability_result ) ) {
+				return $this->buildErrorResponse( $ability_result->get_error_message(), 'manage_user_profile' );
+			}
+		}
+
+		return array(
+			'success'   => true,
+			'message'   => 'Profile updated successfully.',
+			'tool_name' => 'manage_user_profile',
+		);
+	}
+
+	/** Execute a self-only Users Ability as the selected acting user. */
+	private function execute_user_ability( string $name, array $input, int $acting_user_id ) {
+		if ( ! function_exists( 'wp_get_ability' ) ) {
+			return new WP_Error( 'ability_api_unavailable', 'WordPress Abilities API is unavailable.' );
+		}
+
+		$ability = wp_get_ability( $name );
+		if ( ! $ability ) {
+			return new WP_Error( 'ability_not_found', sprintf( 'Required ability %s is unavailable.', $name ) );
+		}
+
+		$original_user_id = get_current_user_id();
+		try {
+			wp_set_current_user( $acting_user_id );
+			return $ability->execute( $input );
+		} finally {
+			wp_set_current_user( $original_user_id );
+		}
 	}
 
 	/**
