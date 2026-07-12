@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.19.0] - 2026-07-12
+
+### Added
+- manage Local Scene preferences
+
 ## [0.18.2] - 2026-07-09
 
 ### Fixed
