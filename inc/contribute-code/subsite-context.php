@@ -51,7 +51,6 @@ function extrachill_roadie_default_excluded_plugin_slugs(): array {
 		'easy-wp-smtp',
 		'two-factor',
 		'plugin-check',
-		'html-to-blocks-converter',
 		'gutenberg',
 		// The roadie plugin itself.
 		'extrachill-roadie',
