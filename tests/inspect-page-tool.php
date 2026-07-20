@@ -76,7 +76,14 @@ $GLOBALS['extrachill_roadie_test_state']['site_url']         = 'https://events.e
 
 require_once dirname( __DIR__ ) . '/inc/tools/class-inspect-page.php';
 
-$tool = new ECRoadie_InspectPage();
+class ECRoadie_TestInspectPage extends ECRoadie_InspectPage {
+	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
+		$parameters['calling_user_id'] = get_current_user_id();
+		return parent::handle_tool_call( $parameters, $tool_def );
+	}
+}
+
+$tool = new ECRoadie_TestInspectPage();
 
 // Constrain the network host allow-list to a known fixture set.
 add_filter(
@@ -177,8 +184,8 @@ roadie_test_assert(
 $props = array_keys( $definition['parameters']['properties'] ?? array() );
 sort( $props );
 roadie_test_assert(
-	$props === array( 'max_depth', 'max_nodes', 'selector', 'url' ),
-	'params are exactly the read-only set (url, selector, max_nodes, max_depth). Got: ' . implode( ',', $props )
+	$props === array( 'calling_user_id', 'max_depth', 'max_nodes', 'selector', 'url' ),
+	'params are the read-only set plus the executor-controlled caller. Got: ' . implode( ',', $props )
 );
 // No write/action enum — this tool is read-only by construction.
 roadie_test_assert(

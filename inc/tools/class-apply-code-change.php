@@ -54,13 +54,21 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 	 */
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Apply a previously-generated sandbox artifact: create a worktree for each affected repo, apply the patch, commit with a conventional commit message, push the branch, and open a pull request. Only call this AFTER the user has explicitly approved the proposed change (do not auto-apply). Requires artifact_id from a prior propose_code_change call.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Apply a previously-generated sandbox artifact: create a worktree for each affected repo, apply the patch, commit with a conventional commit message, push the branch, and open a pull request. Only call this AFTER the user has explicitly approved the proposed change (do not auto-apply). Requires artifact_id from a prior propose_code_change call.',
+			'parameters'         => array(
 				'type'       => 'object',
-				'required'   => array( 'artifact_id' ),
+				'required'   => array( 'artifact_id', 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id'    => array( 'type' => 'integer' ),
 					'artifact_id'         => array(
 						'type'        => 'string',
 						'description' => 'Artifact bundle id returned by propose_code_change.',

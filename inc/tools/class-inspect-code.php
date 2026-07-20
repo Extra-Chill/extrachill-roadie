@@ -116,13 +116,21 @@ class ECRoadie_InspectCode extends BaseTool {
 	 */
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Read-only inspector for the SOURCE CODE of the current subsite\'s owning plugin or theme. Use this to GROUND UI/UX feedback in real source before describing or filing it — when a user says "the calendar map is too big" or "move the tonight button," call inspect_code to actually locate and read the relevant template/component instead of inventing element details you have not verified. This tool is strictly READ-ONLY: it can list directories, read files, and grep within the current subsite\'s owning component only. It cannot write, edit, or propose changes (use propose_code_change for that), and it cannot read anything outside the inferred plugin/theme directory (no wp-config, no secrets, no other site\'s files). Three actions: action="list_tree" returns the directory tree of the inferred component (optional subpath + depth to focus, e.g. subpath="templates"); action="read_file" reads one file you located (path relative to the component root, optional start_line/end_line to bound context); action="grep" searches the component for a term ("map", "tonight button", a CSS class) and returns matching file + line number + the matched line. Typical flow: grep for a term the user mentioned, then list_tree or read_file to read the file the grep pointed at, then describe the REAL markup. The owning component is inferred from the subsite the user is chatting on (e.g. events.extrachill.com -> extrachill-events); you do not specify it.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Read-only inspector for the SOURCE CODE of the current subsite\'s owning plugin or theme. Use this to GROUND UI/UX feedback in real source before describing or filing it — when a user says "the calendar map is too big" or "move the tonight button," call inspect_code to actually locate and read the relevant template/component instead of inventing element details you have not verified. This tool is strictly READ-ONLY: it can list directories, read files, and grep within the current subsite\'s owning component only. It cannot write, edit, or propose changes (use propose_code_change for that), and it cannot read anything outside the inferred plugin/theme directory (no wp-config, no secrets, no other site\'s files). Three actions: action="list_tree" returns the directory tree of the inferred component (optional subpath + depth to focus, e.g. subpath="templates"); action="read_file" reads one file you located (path relative to the component root, optional start_line/end_line to bound context); action="grep" searches the component for a term ("map", "tonight button", a CSS class) and returns matching file + line number + the matched line. Typical flow: grep for a term the user mentioned, then list_tree or read_file to read the file the grep pointed at, then describe the REAL markup. The owning component is inferred from the subsite the user is chatting on (e.g. events.extrachill.com -> extrachill-events); you do not specify it.',
+			'parameters'         => array(
 				'type'       => 'object',
-				'required'   => array( 'action' ),
+				'required'   => array( 'action', 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'action'     => array(
 						'type'        => 'string',
 						'enum'        => array( 'list_tree', 'read_file', 'grep' ),

@@ -118,13 +118,13 @@ roadie_test_assert(
 $GLOBALS['extrachill_roadie_test_state']['user_caps'][ EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ] = true;
 $GLOBALS['extrachill_roadie_test_state']['current_user_id'] = 7;
 
-$result_empty = $propose->handle_tool_call( array( 'task_description' => '' ) );
+$result_empty = $propose->handle_tool_call( array( 'task_description' => '', 'calling_user_id' => 7 ) );
 roadie_test_assert(
 	false === $result_empty['success'],
 	'empty propose task_description must fail'
 );
 
-$result_empty_id = $apply->handle_tool_call( array( 'artifact_id' => '' ) );
+$result_empty_id = $apply->handle_tool_call( array( 'artifact_id' => '', 'calling_user_id' => 7 ) );
 roadie_test_assert(
 	false === $result_empty_id['success'],
 	'empty apply artifact_id must fail'
@@ -134,7 +134,7 @@ roadie_test_assert(
 // Issue #22: apply-back gates on GitHubCredentialResolver::isConfigured()
 // rather than a process-env GITHUB_TOKEN check.
 \DataMachineCode\Support\GitHubCredentialResolver::$test_is_configured = false;
-$result_no_token = $apply->handle_tool_call( array( 'artifact_id' => 'artifact-bundle-foo' ) );
+$result_no_token = $apply->handle_tool_call( array( 'artifact_id' => 'artifact-bundle-foo', 'calling_user_id' => 7 ) );
 roadie_test_assert(
 	false === $result_no_token['success'],
 	'apply must fail when GitHubCredentialResolver::isConfigured() is false'
@@ -151,7 +151,7 @@ roadie_test_assert(
 \DataMachineCode\Support\GitHubCredentialResolver::ec_roadie_test_reset();
 
 // --- Propose: missing wp_get_ability surfaces a useful error -----------
-$result_no_ability = $propose->handle_tool_call( array( 'task_description' => 'do a thing' ) );
+$result_no_ability = $propose->handle_tool_call( array( 'task_description' => 'do a thing', 'calling_user_id' => 7 ) );
 roadie_test_assert(
 	false === $result_no_ability['success'],
 	'missing abilities API must surface an error'

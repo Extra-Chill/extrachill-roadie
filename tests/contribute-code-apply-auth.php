@@ -199,7 +199,7 @@ $tool_block->is_configured = false;
 // User cap stub.
 $GLOBALS['extrachill_roadie_test_state']['user_caps'][ EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ] = true;
 $GLOBALS['extrachill_roadie_test_state']['current_user_id'] = 7;
-$blocked = $tool_block->handle_tool_call( array( 'artifact_id' => 'whatever' ) );
+$blocked = $tool_block->handle_tool_call( array( 'artifact_id' => 'whatever', 'calling_user_id' => 7 ) );
 roadie_test_assert(
 	false === $blocked['success'],
 	'apply must fail when resolver_is_configured() returns false'

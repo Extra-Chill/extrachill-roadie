@@ -65,22 +65,19 @@ $calls = $GLOBALS['ec_roadie_test_rest_calls'];
 ec_roadie_smoke_assert( 1 === count( $calls ), 'Exactly one REST call should be made.' );
 ec_roadie_smoke_assert( 99 === ( $calls[0]['args']['user_id'] ?? 0 ), 'Explicit user_id override should reach the cross-site helper.' );
 
-// --- Scenario 3: calling user falls back to current user when payload is silent ---
-// REST-initiated invocation with no chat loop — should still resolve to current user.
+// --- Scenario 3: ambient current user cannot replace authoritative context ---
 ec_roadie_test_reset();
 ec_roadie_test_login_as( 42 );
 
 $result = $tool->handle_tool_call(
 	array(
 		'action' => 'get',
-		// No calling_user_id and no user_id — REST/CLI context.
+		// No authoritative calling_user_id.
 	)
 );
 
-ec_roadie_smoke_assert( ( $result['success'] ?? false ) === true, 'Get should succeed with current-user fallback.' );
-
-$calls = $GLOBALS['ec_roadie_test_rest_calls'];
-ec_roadie_smoke_assert( 42 === ( $calls[0]['args']['user_id'] ?? 0 ), 'Fallback to current user (#42) should reach the cross-site helper.' );
+ec_roadie_smoke_assert( false === ( $result['success'] ?? true ), 'Missing authoritative caller must deny even when WordPress has a current user.' );
+ec_roadie_smoke_assert( 0 === count( $GLOBALS['ec_roadie_test_rest_calls'] ), 'Ambient current-user denial must not reach REST.' );
 
 // --- Scenario 4: no user at all → clean denial, no REST call ---
 ec_roadie_test_reset();

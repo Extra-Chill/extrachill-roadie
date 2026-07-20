@@ -12,30 +12,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Resolve the authenticated human on whose behalf a tool executes.
  *
- * Canonical calling-user context takes precedence over ambient WordPress
- * state. An explicit zero means no human caller and must never inherit the
- * runtime, agent, or transcript owner. Direct REST/CLI calls without canonical
- * caller context may use their authenticated current user.
+ * The tool executor injects this value from trusted caller context. An
+ * explicit zero means no human caller and must never inherit the runtime,
+ * agent, transcript owner, or ambient WordPress user.
  *
  * @param array $parameters Merged tool parameters.
  * @return int Acting user ID, or 0 when no authenticated caller exists.
  */
 function extrachill_roadie_resolve_acting_caller( array $parameters ): int {
-	$has_caller_context = array_key_exists( 'calling_user_id', $parameters );
-	$calling_user_id    = 0;
-
-	if ( function_exists( 'datamachine_get_calling_user_id' ) ) {
-		$calling_user_id = max( 0, (int) datamachine_get_calling_user_id( $parameters ) );
-	} elseif ( $has_caller_context && is_numeric( $parameters['calling_user_id'] ) ) {
-		$calling_user_id = max( 0, (int) $parameters['calling_user_id'] );
+	if ( ! array_key_exists( 'calling_user_id', $parameters ) || ! is_numeric( $parameters['calling_user_id'] ) ) {
+		return 0;
 	}
 
-	if ( $calling_user_id > 0 || $has_caller_context ) {
-		return $calling_user_id;
-	}
-
-	$current_user_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
-	return max( 0, $current_user_id );
+	return max( 0, (int) $parameters['calling_user_id'] );
 }
 
 /**

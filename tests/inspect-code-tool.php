@@ -68,7 +68,14 @@ $GLOBALS['extrachill_roadie_test_state']['current_user_id']  = 0;
 
 require_once dirname( __DIR__ ) . '/inc/tools/class-inspect-code.php';
 
-$tool = new ECRoadie_InspectCode();
+class ECRoadie_TestInspectCode extends ECRoadie_InspectCode {
+	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
+		$parameters['calling_user_id'] = get_current_user_id();
+		return parent::handle_tool_call( $parameters, $tool_def );
+	}
+}
+
+$tool = new ECRoadie_TestInspectCode();
 
 // --- Build a real temp fixture component + an out-of-jail secret -----------
 

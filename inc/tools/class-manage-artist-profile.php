@@ -33,10 +33,17 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Manage artist profiles on the Extra Chill platform. Defaults to the calling user. Admins can target another user by passing user_id. Can list a user\'s artists, get artist details, create a new artist profile, or update an existing one (name, bio, genre, city, images). If the user has only one artist, it is auto-selected.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Manage artist profiles on the Extra Chill platform. Defaults to the calling user. Admins can target another user by passing user_id. Can list a user\'s artists, get artist details, create a new artist profile, or update an existing one (name, bio, genre, city, images). If the user has only one artist, it is auto-selected.',
+			'parameters'         => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'           => array(
@@ -47,6 +54,7 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 						'type'        => 'integer',
 						'description' => 'Target user ID for list/create/auto-resolve. Optional. Defaults to the calling user. Admin-only override.',
 					),
+					'calling_user_id'  => array( 'type' => 'integer' ),
 					'artist_id'        => array(
 						'type'        => 'integer',
 						'description' => 'Artist profile ID. Required for "get" and "update". Omit for "list" and "create". If the user has only one artist, this is auto-resolved.',
@@ -76,7 +84,7 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 						'description' => 'Attachment ID for header image. Pass 0 to remove. Used in "update".',
 					),
 				),
-				'required'   => array( 'action' ),
+				'required'   => array( 'action', 'calling_user_id' ),
 			),
 		);
 	}

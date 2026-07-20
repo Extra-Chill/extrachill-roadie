@@ -56,13 +56,21 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 	 */
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'When the user describes a code change they want made to this site (a typo fix, copy change, a small feature, etc.), use this tool to dispatch a sandboxed coding agent that implements the change in an isolated WordPress Playground. The sandbox produces a reviewable patch artifact and a live preview URL — it does NOT push code or open a pull request. After this tool returns, surface the preview URL and summary to the user and ask them to approve. When the user approves, call apply_code_change with the returned artifact_id to commit the change and open a PR.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'When the user describes a code change they want made to this site (a typo fix, copy change, a small feature, etc.), use this tool to dispatch a sandboxed coding agent that implements the change in an isolated WordPress Playground. The sandbox produces a reviewable patch artifact and a live preview URL — it does NOT push code or open a pull request. After this tool returns, surface the preview URL and summary to the user and ask them to approve. When the user approves, call apply_code_change with the returned artifact_id to commit the change and open a PR.',
+			'parameters'         => array(
 				'type'       => 'object',
-				'required'   => array( 'task_description' ),
+				'required'   => array( 'task_description', 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'task_description' => array(
 						'type'        => 'string',
 						'description' => 'Natural-language description of the code change to make. Include enough context that a coding agent could implement it without further questions — what to change, where (file/component/page if known), and the desired outcome.',

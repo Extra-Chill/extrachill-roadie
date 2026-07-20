@@ -36,10 +36,17 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Manage an artist\'s link page on Extra Chill. Defaults to the calling user. Admins can target another user by passing user_id. Can get the full link page, add/remove individual links, replace all links, update social links, change visual styles (colors, fonts, button shapes), and update settings (redirects, tracking pixels, subscribe mode). The artist_id is auto-resolved if the user has only one artist.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Manage an artist\'s link page on Extra Chill. Defaults to the calling user. Admins can target another user by passing user_id. Can get the full link page, add/remove individual links, replace all links, update social links, change visual styles (colors, fonts, button shapes), and update settings (redirects, tracking pixels, subscribe mode). The artist_id is auto-resolved if the user has only one artist.',
+			'parameters'         => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'              => array(
@@ -50,6 +57,7 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 						'type'        => 'integer',
 						'description' => 'Target user ID for auto-resolving artist_id. Optional. Defaults to the calling user. Admin-only override.',
 					),
+					'calling_user_id'     => array( 'type' => 'integer' ),
 					'artist_id'           => array(
 						'type'        => 'integer',
 						'description' => 'Artist profile ID. Auto-resolved if user has one artist.',
@@ -97,7 +105,7 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 						'description' => 'Attachment ID for profile image. Pass 0 to remove. Used in "save_settings".',
 					),
 				),
-				'required'   => array( 'action' ),
+				'required'   => array( 'action', 'calling_user_id' ),
 			),
 		);
 	}

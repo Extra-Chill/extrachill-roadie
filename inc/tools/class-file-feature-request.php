@@ -81,11 +81,19 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			'class'                   => self::class,
 			'method'                  => 'handle_tool_call',
 			'client_context_bindings' => array( 'page_url' => 'page_url' ),
+			'parameter_bindings'      => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
 			'description'             => 'When the user wants to track something on GitHub — a feature request, a bug report, or any "open an issue on github" / "file an issue" / "report a bug" ask — use this tool to file or look up GitHub issues against the appropriate Extra Chill repo. This is ALWAYS the right tool for filing GitHub issues; never use create_taxonomy_term (which makes a category/tag term, not a GitHub issue) for issue/bug-report requests. Three actions are supported: action="file_issue" creates a new issue (requires title, body; repo is optional and auto-inferred from the current subsite when omitted); action="list_recent_issues" finds existing open issues to dedupe against (optional repo/labels/state); action="comment_on_issue" adds a comment to an existing issue (requires issue_number, body; repo optional). When the user is chatting from the subsite that owns the code, leave repo unset and it will be inferred from page context — do not interrogate the user for the repo. Before filing new issues, prefer calling list_recent_issues first with a few keywords from the proposed title to surface duplicates and ask the user whether to comment on an existing thread instead. Use propose_code_change instead when the user wants the change implemented, not just tracked.',
 			'parameters'              => array(
 				'type'       => 'object',
-				'required'   => array( 'action' ),
+				'required'   => array( 'action', 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'action'       => array(
 						'type'        => 'string',
 						'enum'        => array( 'file_issue', 'list_recent_issues', 'comment_on_issue' ),
@@ -929,13 +937,9 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	/**
 	 * Add a "Filed via Roadie chat by <user>" footer to issue/comment bodies.
 	 *
-	 * Priority order for proposer identity (post #8):
-	 *   1. `$parameters['calling_user_id']` — the human on whose behalf the
-	 *      agent loop is running (set by `ChatOrchestrator` and propagated
-	 *      through `ToolParameters::buildParameters` per the
-	 *      `datamachine_get_calling_user_id()` contract).
-	 *   2. `get_current_user_id()` — fallback when the tool is invoked
-	 *      outside an agent loop (CLI, smoke test, direct REST).
+	 * `$parameters['calling_user_id']` is injected authoritatively from the
+	 * agent loop's trusted caller context. Missing or zero caller identity is
+	 * never replaced with the ambient WordPress user.
 	 *
 	 * @param string $body       Original body.
 	 * @param array  $parameters Tool parameters (may carry `calling_user_id`).

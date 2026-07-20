@@ -110,10 +110,8 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 	 * Resolve the user ID this invocation should act on behalf of.
 	 *
 	 * Priority order:
-	 *   1. Explicit `user_id` input from the AI (override).
-	 *   2. `calling_user_id` from the loop payload (human caller in chat).
-	 *   3. `get_current_user_id()` only when canonical calling-user context is
-	 *      absent (direct REST/CLI execution).
+	 *   1. Explicit `user_id` input from the AI (admin-only target override).
+	 *   2. Authoritative `calling_user_id` injected from trusted caller context.
 	 *
 	 * Returns 0 only when no user is resolvable — caller must handle that
 	 * case explicitly (typically a "you must be logged in" error response).

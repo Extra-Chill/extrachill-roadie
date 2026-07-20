@@ -165,11 +165,19 @@ class ECRoadie_InspectPage extends BaseTool {
 			'class'                   => self::class,
 			'method'                  => 'handle_tool_call',
 			'client_context_bindings' => array( 'url' => 'page_url' ),
+			'parameter_bindings'      => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
 			'description'             => 'Read-only inspector for the RENDERED DOM of the current page — what the user actually sees. Use this to GROUND UI/layout feedback before describing or filing it: when a user says "the calendar map is too big" or "the tonight/this weekend buttons should be grouped with the search controls," call inspect_page to read the assembled markup and see how elements actually nest and sit next to each other, instead of guessing layout from the URL and title. This returns a STRUCTURED, token-economical view of the relevant subtree (element tags + ids + classes + trimmed text + nesting) — NOT a raw HTML dump — so you can reason about sibling/container relationships and which area dominates the page. It is the DOM half of grounding; pair it with inspect_code (the SOURCE half): inspect_page shows WHAT is on screen and how plugins compose into one page, then inspect_code shows WHICH plugin/file emits a given element. This tool is strictly READ-ONLY and can only read pages on the Extra Chill multisite network, rendered in YOUR (the calling team member\'s) own logged-in view — it cannot fetch arbitrary external sites and cannot show a page you could not load yourself. By default it reads the current page (from client context) and scopes to the main content area; pass url to read a specific on-network page, or selector to focus a region (e.g. ".calendar", "#main").',
 			'parameters'              => array(
 				'type'       => 'object',
-				'required'   => array(),
+				'required'   => array( 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'url'       => array(
 						'type'        => 'string',
 						'description' => 'Optional. The page to inspect. Defaults to the page the user is currently viewing (from client context). Must be a URL on the Extra Chill multisite network (extrachill.com or a *.extrachill.com subsite); off-network URLs are rejected.',
