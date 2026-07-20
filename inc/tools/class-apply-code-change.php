@@ -31,6 +31,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 use DataMachineCode\Support\GitHubCredentialResolver;
 
@@ -80,7 +82,7 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		unset( $tool_def );
 
-		if ( ! current_user_can( EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ) ) {
+		if ( ! extrachill_roadie_acting_caller_can( $parameters, EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ) ) {
 			return $this->buildErrorResponse(
 				'You do not have permission to apply code changes. Ask an administrator to grant the "extrachill_propose_code" capability.',
 				$this->tool_slug

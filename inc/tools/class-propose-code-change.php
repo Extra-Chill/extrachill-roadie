@@ -31,6 +31,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 use DataMachineCode\Support\GitHubCredentialResolver;
 
@@ -80,8 +82,9 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		unset( $tool_def );
 
-		// 1. Capability check.
-		if ( ! current_user_can( EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ) ) {
+		// 1. Capability check against the authoritative acting caller.
+		$calling_user_id = extrachill_roadie_resolve_acting_caller( $parameters );
+		if ( ! extrachill_roadie_acting_caller_can( $parameters, EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ) ) {
 			return $this->buildErrorResponse(
 				'You do not have permission to propose code changes. Ask an administrator to grant the "extrachill_propose_code" capability.',
 				$this->tool_slug
@@ -164,7 +167,7 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 				),
 				'editable_targets' => $recipe['editable_targets'],
 				'unmapped_plugins' => $recipe['unmapped_active_plugins'],
-				'proposer_user_id' => function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0,
+				'proposer_user_id' => $calling_user_id,
 			),
 		);
 

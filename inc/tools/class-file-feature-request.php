@@ -33,6 +33,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 
 class ECRoadie_FileFeatureRequest extends BaseTool {
@@ -146,7 +148,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		// who can propose a code change should also be able to file an idea;
 		// keeping these on one cap avoids a parallel grant flow for operators.
 		$cap = defined( 'EXTRACHILL_ROADIE_PROPOSE_CODE_CAP' ) ? EXTRACHILL_ROADIE_PROPOSE_CODE_CAP : 'extrachill_propose_code';
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! extrachill_roadie_acting_caller_can( $parameters, $cap ) ) {
 			return $this->buildErrorResponse(
 				sprintf(
 					'You do not have permission to file feature requests. Ask an administrator to grant the "%s" capability.',
@@ -940,17 +942,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	 * @return string Augmented body.
 	 */
 	protected function augment_body_with_attribution( string $body, array $parameters = array() ): string {
-		$user_id = 0;
-
-		if ( function_exists( 'datamachine_get_calling_user_id' ) ) {
-			$user_id = (int) datamachine_get_calling_user_id( $parameters );
-		} elseif ( isset( $parameters['calling_user_id'] ) ) {
-			$user_id = (int) $parameters['calling_user_id'];
-		}
-
-		if ( $user_id <= 0 && function_exists( 'get_current_user_id' ) ) {
-			$user_id = (int) get_current_user_id();
-		}
+		$user_id = extrachill_roadie_resolve_acting_caller( $parameters );
 
 		$username = '';
 		$display  = '';

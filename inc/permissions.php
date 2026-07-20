@@ -114,7 +114,7 @@ function extrachill_roadie_allowed_redirect_uris(): array {
 }
 
 /**
- * Grant team members access to the roadie agent.
+ * Grant team members viewer access to the roadie agent.
  *
  * Hooks `datamachine_can_access_agent` (a generic Data Machine
  * filter) and elevates EC team members to roadie-agent access. This
@@ -134,15 +134,19 @@ function extrachill_roadie_allowed_redirect_uris(): array {
  * @param bool   $can_access   Whether the user can access the agent.
  * @param int    $agent_id     Agent ID.
  * @param int    $user_id      User ID.
- * @param string $minimum_role Minimum role required.
+ * @param string $minimum_role Minimum role required. Team entitlement satisfies viewer only.
  * @return bool
  */
 function extrachill_roadie_team_access_bridge( bool $can_access, int $agent_id, int $user_id, string $minimum_role ): bool {
-	unset( $minimum_role );
-
 	// If already granted, no need to check further.
 	if ( $can_access ) {
 		return true;
+	}
+
+	// Team membership is the additive viewer entitlement used by the widget.
+	// Operator and admin semantics require canonical Agents API grants.
+	if ( 'viewer' !== $minimum_role ) {
+		return false;
 	}
 
 	// Only apply to the roadie agent.

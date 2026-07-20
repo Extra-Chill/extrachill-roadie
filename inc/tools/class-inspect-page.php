@@ -45,11 +45,10 @@
  *     multisite network (verified against the network's registered site hosts).
  *     An off-network URL is rejected — this tool is not a generic web fetcher
  *     and cannot be turned into an SSRF primitive against arbitrary hosts.
- *   - CALLER'S VIEW: the fetch forwards the calling request's auth cookies so
- *     the page renders exactly as the (already team-gated) caller would see it —
- *     no more, no less. Because the caller is team-or-above AND the host is
- *     on-network AND their own session drives the render, the tool can never
- *     return a page the caller couldn't load themselves in a browser.
+ *   - CALLER'S VIEW: browser auth cookies are forwarded only when the
+ *     authoritative acting caller is also the authenticated WordPress request
+ *     user. Delegated execution never borrows runtime-owner cookies and falls
+ *     back to the public render, so it cannot expose a more privileged view.
  *   - Dependency-free parsing: PHP's bundled DOMDocument. No external HTML
  *     library, no shell-out, no headless browser.
  *
@@ -70,6 +69,8 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+require_once __DIR__ . '/caller.php';
 
 use DataMachine\Engine\AI\Tools\BaseTool;
 
@@ -203,7 +204,7 @@ class ECRoadie_InspectPage extends BaseTool {
 		// 1. Capability check — TEAM TIER (access_roadie), identical to
 		// inspect_code. Reading the rendered page to ground feedback is a team
 		// action; a public visitor has no team access and gets a clean error.
-		$cap_check = $this->check_team_capability();
+		$cap_check = $this->check_team_capability( $parameters );
 		if ( true !== $cap_check ) {
 			return $cap_check;
 		}
@@ -226,7 +227,7 @@ class ECRoadie_InspectPage extends BaseTool {
 		}
 
 		// 4. Fetch the rendered HTML in the caller's authenticated view.
-		$html = $this->fetch_rendered_html( $safe_url );
+		$html = $this->fetch_rendered_html( $safe_url, extrachill_roadie_resolve_acting_caller( $parameters ) );
 		if ( ! is_string( $html ) ) {
 			return $html; // Error response.
 		}
@@ -242,27 +243,15 @@ class ECRoadie_InspectPage extends BaseTool {
 	/**
 	 * Gate on team tier via the access_roadie capability.
 	 *
-	 * Mirrors ECRoadie_InspectCode::check_team_capability() exactly — reuses
-	 * extrachill_roadie_user_tier() so the tier boundary lives in one place,
-	 * with a direct cap-check fallback. Either path requires team-or-above.
+	 * Mirrors ECRoadie_InspectCode::check_team_capability() exactly: authorize
+	 * the authoritative acting caller, never the ambient runtime owner.
 	 *
+	 * @param array $parameters Merged tool parameters.
 	 * @return true|array True when allowed, error response otherwise.
 	 */
-	protected function check_team_capability() {
-		$allowed = false;
-
-		if ( function_exists( 'extrachill_roadie_user_tier' ) ) {
-			$user_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
-			$tier    = extrachill_roadie_user_tier( $user_id );
-			$allowed = in_array(
-				$tier,
-				array( EXTRACHILL_ROADIE_TIER_TEAM, EXTRACHILL_ROADIE_TIER_ADMIN ),
-				true
-			);
-		} else {
-			// phpcs:ignore WordPress.WP.Capabilities.Unknown -- Custom cap granted by the extra_chill_team role (extrachill-users#45).
-			$allowed = function_exists( 'current_user_can' ) && current_user_can( 'access_roadie' );
-		}
+	protected function check_team_capability( array $parameters ) {
+		$allowed = extrachill_roadie_acting_caller_can( $parameters, 'access_roadie' )
+			|| extrachill_roadie_acting_caller_can( $parameters, 'manage_options' );
 
 		if ( ! $allowed ) {
 			return $this->buildErrorResponse(
@@ -379,20 +368,19 @@ class ECRoadie_InspectPage extends BaseTool {
 	 * Fetch the rendered HTML of an on-network URL in the calling team
 	 * member's authenticated view.
 	 *
-	 * The caller's auth cookies (from the originating request) are forwarded so
-	 * the page renders exactly as that user would see it — role-gated nav,
-	 * logged-in chrome, the works. Combined with the team gate + on-network
-	 * host check, this guarantees the tool never returns a page the caller
-	 * couldn't load themselves.
+	 * Auth cookies are forwarded only when the authoritative acting caller and
+	 * current WordPress request user are the same. Delegated execution receives
+	 * the public render rather than borrowing a runtime owner's session.
 	 *
 	 * A test seam filter (extrachill_roadie_inspect_page_html) lets the smoke
 	 * suite inject HTML so the parsing/structuring logic is exercised without a
 	 * live HTTP round-trip.
 	 *
-	 * @param string $url On-network, validated URL.
+	 * @param string $url             On-network, validated URL.
+	 * @param int    $calling_user_id Authoritative acting caller.
 	 * @return string|array HTML string, or error response.
 	 */
-	protected function fetch_rendered_html( string $url ) {
+	protected function fetch_rendered_html( string $url, int $calling_user_id ) {
 		/**
 		 * Short-circuit the HTTP fetch with caller-supplied HTML.
 		 *
@@ -424,7 +412,7 @@ class ECRoadie_InspectPage extends BaseTool {
 			'headers'     => array(),
 		);
 
-		$cookie_header = $this->caller_cookie_header();
+		$cookie_header = $this->caller_cookie_header( $calling_user_id );
 		if ( '' !== $cookie_header ) {
 			$args['headers']['Cookie'] = $cookie_header;
 		}
@@ -461,14 +449,19 @@ class ECRoadie_InspectPage extends BaseTool {
 	 * Build the Cookie header that reproduces the caller's authenticated view
 	 * by forwarding the auth cookies present on the originating request.
 	 *
-	 * Only forwards cookies; never invents or elevates a session. If the caller
-	 * had no auth cookie (e.g. token-auth context), the fetch is anonymous —
-	 * which still cannot exceed what an anonymous viewer sees, so it cannot
-	 * leak.
+	 * Only forwards cookies for a same-user browser request; never invents,
+	 * delegates, or elevates a session. Token-auth and delegated contexts fetch
+	 * anonymously, which cannot exceed what an anonymous viewer sees.
 	 *
+	 * @param int $calling_user_id Authoritative acting caller.
 	 * @return string Cookie header value, or '' when none.
 	 */
-	protected function caller_cookie_header(): string {
+	protected function caller_cookie_header( int $calling_user_id ): string {
+		$current_user_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
+		if ( $calling_user_id <= 0 || $calling_user_id !== $current_user_id ) {
+			return '';
+		}
+
 		if ( empty( $_COOKIE ) || ! is_array( $_COOKIE ) ) {
 			return '';
 		}

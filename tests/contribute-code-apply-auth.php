@@ -198,6 +198,7 @@ $tool_block         = new ECRoadie_TestableApplyCodeChange();
 $tool_block->is_configured = false;
 // User cap stub.
 $GLOBALS['extrachill_roadie_test_state']['user_caps'][ EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ] = true;
+$GLOBALS['extrachill_roadie_test_state']['current_user_id'] = 7;
 $blocked = $tool_block->handle_tool_call( array( 'artifact_id' => 'whatever' ) );
 roadie_test_assert(
 	false === $blocked['success'],

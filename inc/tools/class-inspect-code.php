@@ -53,6 +53,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 
 class ECRoadie_InspectCode extends BaseTool {
@@ -174,7 +176,7 @@ class ECRoadie_InspectCode extends BaseTool {
 		// is far lower risk than proposing code, so this deliberately does NOT
 		// gate on extrachill_propose_code: a member with access_roadie but
 		// without propose-code rights MUST be able to inspect_code.
-		$cap_check = $this->check_team_capability();
+		$cap_check = $this->check_team_capability( $parameters );
 		if ( true !== $cap_check ) {
 			return $cap_check;
 		}
@@ -218,27 +220,15 @@ class ECRoadie_InspectCode extends BaseTool {
 	/**
 	 * Gate on team tier via the access_roadie capability.
 	 *
-	 * Reuses extrachill_roadie_user_tier() when available so the tier boundary
-	 * lives in exactly one place; falls back to a direct cap check when the
-	 * resolver is somehow unavailable. Either path requires team-or-above.
+	 * Checks the authoritative acting caller, never the ambient runtime owner.
+	 * The caller must carry either the team capability or administrator access.
 	 *
+	 * @param array $parameters Merged tool parameters.
 	 * @return true|array True when allowed, error response otherwise.
 	 */
-	protected function check_team_capability() {
-		$allowed = false;
-
-		if ( function_exists( 'extrachill_roadie_user_tier' ) ) {
-			$user_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
-			$tier    = extrachill_roadie_user_tier( $user_id );
-			$allowed = in_array(
-				$tier,
-				array( EXTRACHILL_ROADIE_TIER_TEAM, EXTRACHILL_ROADIE_TIER_ADMIN ),
-				true
-			);
-		} else {
-			// phpcs:ignore WordPress.WP.Capabilities.Unknown -- Custom cap granted by the extra_chill_team role (extrachill-users#45).
-			$allowed = function_exists( 'current_user_can' ) && current_user_can( 'access_roadie' );
-		}
+	protected function check_team_capability( array $parameters ) {
+		$allowed = extrachill_roadie_acting_caller_can( $parameters, 'access_roadie' )
+			|| extrachill_roadie_acting_caller_can( $parameters, 'manage_options' );
 
 		if ( ! $allowed ) {
 			return $this->buildErrorResponse(

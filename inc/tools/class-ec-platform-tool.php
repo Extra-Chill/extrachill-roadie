@@ -17,6 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 
 abstract class ECRoadie_PlatformTool extends BaseTool {
@@ -105,38 +107,6 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 	}
 
 	/**
-	 * Read the calling user ID from the merged tool parameters.
-	 *
-	 * Data Machine's ToolParameters::buildParameters() merges the loop payload
-	 * INTO the tool's $parameters array before calling handle_tool_call(). The
-	 * loop payload sets `calling_user_id` from the chat orchestrator's loop
-	 * context — so every tool sees it as $parameters['calling_user_id'].
-	 *
-	 * Returns 0 when absent, non-numeric, or non-positive — matching the
-	 * datamachine_get_calling_user_id() contract from data-machine core.
-	 *
-	 * @since 0.8.0
-	 *
-	 * @param array $parameters Tool parameters (post payload-merge).
-	 * @return int Non-negative user ID. 0 means "no human caller".
-	 */
-	protected function get_calling_user_id( array $parameters ): int {
-		// Prefer the canonical core helper when available so we stay in sync
-		// with any future contract changes.
-		if ( function_exists( 'datamachine_get_calling_user_id' ) ) {
-			return datamachine_get_calling_user_id( $parameters );
-		}
-
-		$raw = $parameters['calling_user_id'] ?? 0;
-		if ( ! is_numeric( $raw ) ) {
-			return 0;
-		}
-
-		$user_id = (int) $raw;
-		return $user_id > 0 ? $user_id : 0;
-	}
-
-	/**
 	 * Resolve the user ID this invocation should act on behalf of.
 	 *
 	 * Priority order:
@@ -161,16 +131,7 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 			}
 		}
 
-		$calling = $this->get_calling_user_id( $parameters );
-		if ( $calling > 0 ) {
-			return $calling;
-		}
-		if ( array_key_exists( 'calling_user_id', $parameters ) ) {
-			return 0;
-		}
-
-		$current = (int) get_current_user_id();
-		return $current > 0 ? $current : 0;
+		return extrachill_roadie_resolve_acting_caller( $parameters );
 	}
 
 	/**
@@ -199,14 +160,7 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 			);
 		}
 
-		$calling = $this->get_calling_user_id( $parameters );
-
-		// An explicit zero is canonical no-human context and must not inherit the
-		// runtime/session owner from WordPress state. Direct REST/CLI calls that do
-		// not carry calling-user context may still use their authenticated user.
-		$caller = array_key_exists( 'calling_user_id', $parameters )
-			? $calling
-			: (int) get_current_user_id();
+		$caller = extrachill_roadie_resolve_acting_caller( $parameters );
 
 		if ( $caller <= 0 ) {
 			return $this->buildErrorResponse(

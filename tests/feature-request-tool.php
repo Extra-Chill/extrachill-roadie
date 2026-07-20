@@ -138,6 +138,7 @@ roadie_test_assert(
 
 // Grant the cap for the rest of the suite.
 $GLOBALS['extrachill_roadie_test_state']['user_caps'][ EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ] = true;
+$GLOBALS['extrachill_roadie_test_state']['current_user_id'] = 7;
 
 // --- Action + repo validation ------------------------------------------
 

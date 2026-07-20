@@ -107,6 +107,8 @@ namespace {
 	roadie_access_login( 102, array( 'access_roadie' ) );
 	roadie_access_assert( extrachill_roadie_gate_widget_visibility( false, $roadie ), 'Team capability should add Roadie widget visibility.' );
 	roadie_access_assert( extrachill_roadie_team_access_bridge( false, 77, 102, 'viewer' ), 'Team capability should add agent access.' );
+	roadie_access_assert( ! extrachill_roadie_team_access_bridge( false, 77, 102, 'operator' ), 'Team capability must not satisfy the canonical operator role.' );
+	roadie_access_assert( ! extrachill_roadie_team_access_bridge( false, 77, 102, 'admin' ), 'Team capability must not satisfy the canonical admin role.' );
 	$team_agents = extrachill_roadie_gate_widget_agent_list( array() );
 	roadie_access_assert( 'roadie' === ( $team_agents[0]['agent_slug'] ?? '' ), 'Team capability should append Roadie when the canonical list omits it.' );
 
@@ -123,5 +125,5 @@ namespace {
 	roadie_access_assert( extrachill_roadie_gate_widget_visibility( true, $other ), 'Other-agent visibility decisions should remain untouched.' );
 	roadie_access_assert( ! extrachill_roadie_gate_widget_visibility( false, $other ), 'Other-agent denials should remain untouched.' );
 
-	echo "Roadie agent grant access smoke passed (16 assertions).\n";
+	echo "Roadie agent grant access smoke passed (18 assertions).\n";
 }

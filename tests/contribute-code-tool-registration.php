@@ -116,6 +116,7 @@ roadie_test_assert(
 
 // --- Empty inputs ------------------------------------------------------
 $GLOBALS['extrachill_roadie_test_state']['user_caps'][ EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ] = true;
+$GLOBALS['extrachill_roadie_test_state']['current_user_id'] = 7;
 
 $result_empty = $propose->handle_tool_call( array( 'task_description' => '' ) );
 roadie_test_assert(
