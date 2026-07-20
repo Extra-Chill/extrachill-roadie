@@ -49,7 +49,7 @@ class ECRoadie_WritingAssistant extends ECRoadie_PlatformTool {
 		$this->registerTool(
 			'writing_assistant',
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'author' )
 		);
 	}

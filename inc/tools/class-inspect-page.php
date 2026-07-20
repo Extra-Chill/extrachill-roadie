@@ -40,8 +40,7 @@
  *   - Read-only, full stop. No write action exists on this tool.
  *   - Capability: TEAM TIER (access_roadie) — identical gate to inspect_code,
  *     via extrachill_roadie_user_tier(). A public visitor gets a clean
- *     permission error; the tool is also hidden from public-tier callers by the
- *     managed-tool-slugs visibility filter.
+ *     permission error.
  *   - SAME-NETWORK ONLY: the resolved URL's host MUST belong to this WordPress
  *     multisite network (verified against the network's registered site hosts).
  *     An off-network URL is rejected — this tool is not a generic web fetcher
@@ -142,7 +141,7 @@ class ECRoadie_InspectPage extends BaseTool {
 		$this->registerTool(
 			$this->tool_slug,
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array(
 				'access_level'            => 'authenticated',
 				// Bind the per-turn client-context page_url into the `url`

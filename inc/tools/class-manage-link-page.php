@@ -29,7 +29,7 @@ class ECRoadie_ManageLinkPage extends ECRoadie_PlatformTool {
 		$this->registerTool(
 			'manage_link_page',
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}

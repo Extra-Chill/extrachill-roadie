@@ -29,7 +29,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		$this->registerTool(
 			'manage_community',
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}

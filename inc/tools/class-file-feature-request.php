@@ -54,7 +54,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		$this->registerTool(
 			$this->tool_slug,
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array(
 				'access_level'            => 'authenticated',
 				// Bind the per-turn client-context page_url into the `page_url`

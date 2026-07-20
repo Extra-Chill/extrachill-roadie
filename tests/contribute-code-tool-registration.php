@@ -69,8 +69,8 @@ foreach ( array( 'propose_code_change', 'apply_code_change' ) as $slug ) {
 	);
 	$reg = $GLOBALS['extrachill_roadie_test_state']['registered_tools'][ $slug ];
 	roadie_test_assert(
-		in_array( 'chat', $reg['modes'], true ),
-		$slug . ' must register for chat mode'
+		array( 'roadie' ) === $reg['modes'],
+		$slug . ' must register only for roadie mode'
 	);
 	roadie_test_assert(
 		'authenticated' === ( $reg['meta']['access_level'] ?? '' ),

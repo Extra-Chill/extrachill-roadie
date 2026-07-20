@@ -26,7 +26,7 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 		$this->registerTool(
 			'manage_artist_profile',
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}

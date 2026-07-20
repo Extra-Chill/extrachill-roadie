@@ -3,7 +3,7 @@
  * Smoke tests for the read-only inspect_page (rendered DOM) chat tool.
  *
  * Covers:
- *   - Tool registers via the datamachine_tools filter (chat mode, authenticated)
+ *   - Tool registers via the datamachine_tools filter (roadie mode, authenticated)
  *     and declares the page_url client-context binding.
  *   - Tool definition surfaces NO write action and the read-only param set.
  *   - Capability gate: callers below team tier (no access_roadie) are blocked;
@@ -158,7 +158,7 @@ roadie_test_assert(
 );
 
 $reg = $GLOBALS['extrachill_roadie_test_state']['registered_tools']['inspect_page'];
-roadie_test_assert( in_array( 'chat', $reg['modes'], true ), 'tool must register for chat mode' );
+roadie_test_assert( array( 'roadie' ) === $reg['modes'], 'tool must register only for roadie mode' );
 roadie_test_assert(
 	'authenticated' === ( $reg['meta']['access_level'] ?? '' ),
 	'tool must require authenticated access_level'

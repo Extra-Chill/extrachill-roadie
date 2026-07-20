@@ -3,7 +3,7 @@
  * Smoke tests for the read-only inspect_code chat tool.
  *
  * Covers:
- *   - Tool registers via the datamachine_tools filter (chat mode, authenticated).
+ *   - Tool registers via the datamachine_tools filter (roadie mode, authenticated).
  *   - Tool definition surfaces the three read-only actions and NO write action.
  *   - Capability gate: callers below team tier (no access_roadie) are blocked.
  *   - SECURITY — the load-bearing jail:
@@ -120,7 +120,7 @@ roadie_test_assert(
 );
 
 $reg = $GLOBALS['extrachill_roadie_test_state']['registered_tools']['inspect_code'];
-roadie_test_assert( in_array( 'chat', $reg['modes'], true ), 'tool must register for chat mode' );
+roadie_test_assert( array( 'roadie' ) === $reg['modes'], 'tool must register only for roadie mode' );
 roadie_test_assert(
 	'authenticated' === ( $reg['meta']['access_level'] ?? '' ),
 	'tool must require authenticated access_level'

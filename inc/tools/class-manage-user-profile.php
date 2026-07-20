@@ -34,7 +34,7 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 		$this->registerTool(
 			'manage_user_profile',
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}

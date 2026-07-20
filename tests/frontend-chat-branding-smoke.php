@@ -39,7 +39,7 @@ if ( ! function_exists( '__' ) ) {
 	}
 }
 
-// Toggleable login state for exercising both greeting branches.
+// Toggleable login state for confirming the greeting does not infer access.
 $GLOBALS['extrachill_roadie_test_logged_in'] = false;
 function is_user_logged_in(): bool {
 	return (bool) ( $GLOBALS['extrachill_roadie_test_logged_in'] ?? false );
@@ -63,15 +63,15 @@ roadie_smoke_assert( 'Roadie' === ( $default_config['fab_label'] ?? '' ), 'Empty
 $other_config = apply_filters( 'frontend_agent_chat_config', array( 'agent_slug' => 'other-agent' ) );
 roadie_smoke_assert( ! isset( $other_config['fab_label'] ), 'Other explicitly configured agents should keep their launcher branding.' );
 
-// Role-aware greeting: logged-out visitors get the explore nudge; signed-in
-// callers get the working-assistant framing.
+// Branding must not infer entitlement from login state. Canonical grant and
+// additive team access are enforced by the dedicated visibility filters.
 $GLOBALS['extrachill_roadie_test_logged_in'] = false;
 $logged_out = apply_filters( 'frontend_agent_chat_config', array( 'agent_slug' => 'roadie' ) );
-roadie_smoke_assert( false !== strpos( (string) ( $logged_out['fab_greeting'] ?? '' ), 'sign in' ), 'Logged-out visitors should get the explore-oriented greeting.' );
+roadie_smoke_assert( ! empty( $logged_out['fab_greeting'] ), 'Roadie should provide a launcher greeting.' );
 
 $GLOBALS['extrachill_roadie_test_logged_in'] = true;
 $logged_in = apply_filters( 'frontend_agent_chat_config', array( 'agent_slug' => 'roadie' ) );
-roadie_smoke_assert( ! empty( $logged_in['fab_greeting'] ) && $logged_in['fab_greeting'] !== ( $logged_out['fab_greeting'] ?? '' ), 'Signed-in callers should get a distinct working-assistant greeting.' );
+roadie_smoke_assert( $logged_in['fab_greeting'] === $logged_out['fab_greeting'], 'Greeting should not replace canonical entitlement with login-state policy.' );
 
 // Page-awareness guidance: the directive-outputs filter should append a
 // system_text guidance block ONLY when page_url is present in client_context,

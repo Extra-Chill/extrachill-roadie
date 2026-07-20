@@ -3,7 +3,7 @@
  * Smoke tests for the file_feature_request chat tool.
  *
  * Covers:
- *   - Tool registers via the datamachine_tools filter (chat mode, authenticated).
+ *   - Tool registers via the datamachine_tools filter (roadie mode, authenticated).
  *   - Tool definition surfaces the three documented actions.
  *   - Capability gate: users without extrachill_propose_code are blocked.
  *   - Repo validation: rejects repos outside the EC slug-to-repo registry.
@@ -109,7 +109,7 @@ roadie_test_assert(
 );
 
 $reg = $GLOBALS['extrachill_roadie_test_state']['registered_tools']['file_feature_request'];
-roadie_test_assert( in_array( 'chat', $reg['modes'], true ), 'tool must register for chat mode' );
+roadie_test_assert( array( 'roadie' ) === $reg['modes'], 'tool must register only for roadie mode' );
 roadie_test_assert(
 	'authenticated' === ( $reg['meta']['access_level'] ?? '' ),
 	'tool must require authenticated access_level'

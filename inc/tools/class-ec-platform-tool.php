@@ -142,8 +142,8 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 	 * Priority order:
 	 *   1. Explicit `user_id` input from the AI (override).
 	 *   2. `calling_user_id` from the loop payload (human caller in chat).
-	 *   3. `get_current_user_id()` as last resort (REST/CLI without explicit
-	 *      calling-user context).
+	 *   3. `get_current_user_id()` only when canonical calling-user context is
+	 *      absent (direct REST/CLI execution).
 	 *
 	 * Returns 0 only when no user is resolvable — caller must handle that
 	 * case explicitly (typically a "you must be logged in" error response).
@@ -164,6 +164,9 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 		$calling = $this->get_calling_user_id( $parameters );
 		if ( $calling > 0 ) {
 			return $calling;
+		}
+		if ( array_key_exists( 'calling_user_id', $parameters ) ) {
+			return 0;
 		}
 
 		$current = (int) get_current_user_id();
@@ -198,15 +201,21 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 
 		$calling = $this->get_calling_user_id( $parameters );
 
-		// Effective caller: the human on whose behalf the agent is acting in
-		// this invocation. Fall back to the current WP user when there is no
-		// chat caller (REST/CLI contexts).
-		$caller = $calling > 0 ? $calling : (int) get_current_user_id();
+		// An explicit zero is canonical no-human context and must not inherit the
+		// runtime/session owner from WordPress state. Direct REST/CLI calls that do
+		// not carry calling-user context may still use their authenticated user.
+		$caller = array_key_exists( 'calling_user_id', $parameters )
+			? $calling
+			: (int) get_current_user_id();
 
-		// Acting as yourself, or no caller at all (system task), is allowed.
-		// System tasks (calling_user_id = 0, current_user = 0) reach internal
-		// abilities directly and have their own permission gates.
-		if ( $caller <= 0 || $caller === $acting_user_id ) {
+		if ( $caller <= 0 ) {
+			return $this->buildErrorResponse(
+				'Permission denied: no authenticated acting caller is available for this user-scoped action.',
+				$this->tool_slug
+			);
+		}
+
+		if ( $caller === $acting_user_id ) {
 			return null;
 		}
 

@@ -57,10 +57,11 @@ function __( $text, $domain = null ): string {
 // "user #<id>" identity line lives in the team/admin guidance), so grant the
 // test caller the team capability (access_roadie) while withholding admin. This
 // keeps the smoke free of a WordPress bootstrap.
+$GLOBALS['ec_roadie_test_team_users'] = array( 38 );
 if ( ! function_exists( 'user_can' ) ) {
 	function user_can( $user, $capability, ...$args ): bool {
-		unset( $user, $args );
-		return 'access_roadie' === $capability;
+		unset( $args );
+		return 'access_roadie' === $capability && in_array( (int) $user, $GLOBALS['ec_roadie_test_team_users'], true );
 	}
 }
 
@@ -102,6 +103,13 @@ ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Calling-User Ident
 ec_roadie_smoke_assert( ! str_contains( $guidance_with_caller, 'Editorial Voice' ), 'Editorial voice is persona and now lives in SOUL.md — the mode block should NOT carry it.' );
 ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Operating Mode' ), 'Guidance should document operating mode (propose-then-act for writes).' );
 
+// A non-team caller can enter Roadie through a canonical Agents API grant.
+// Mode guidance must describe the resource-scoped tools; target abilities and
+// routes decide which artists or other resources that caller may operate on.
+$guidance_for_grantee = apply_filters( 'datamachine_agent_mode_roadie', '', array( 'calling_user_id' => 39 ) );
+ec_roadie_smoke_assert( str_contains( $guidance_for_grantee, 'manage_artist_profile' ), 'Explicitly entitled non-team caller should receive resource-scoped tool guidance.' );
+ec_roadie_smoke_assert( str_contains( $guidance_for_grantee, 'user #39' ), 'Non-team grantee guidance should preserve calling-user identity.' );
+
 // Without a caller (user_id 0), the tier resolver returns the public tier, so
 // guidance uses the visitor identity contract: no user context to act on, tools
 // kept read-only, and a sign-in nudge for anything that would change data.
@@ -112,4 +120,4 @@ ec_roadie_smoke_assert( str_contains( $guidance_no_caller, 'no user context to a
 $composed = apply_filters( 'datamachine_agent_mode_roadie', "# Existing\nPrior directive content.", array() );
 ec_roadie_smoke_assert( str_starts_with( $composed, "# Existing\nPrior directive content." ), 'Filter should append to existing directive content, not overwrite it.' );
 
-echo "Roadie agent mode registration smoke passed (14 assertions).\n";
+echo "Roadie agent mode registration smoke passed (16 assertions).\n";
