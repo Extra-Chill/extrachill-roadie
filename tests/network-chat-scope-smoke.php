@@ -57,11 +57,23 @@ function get_current_network_id(): int {
 }
 
 function get_site( int $blog_id ) {
-	return in_array( $blog_id, array( 1, 7 ), true ) ? (object) array( 'blog_id' => $blog_id ) : null;
+	if ( in_array( $blog_id, array( 1, 7 ), true ) ) {
+		return (object) array(
+			'blog_id' => $blog_id,
+			'site_id' => 9,
+		);
+	}
+
+	return 8 === $blog_id ? (object) array( 'blog_id' => 8, 'site_id' => 10 ) : null;
 }
 
 function get_home_url( int $blog_id, string $path = '' ): string {
-	$base = 1 === $blog_id ? 'https://extrachill.com' : 'https://events.extrachill.com';
+	$sites = array(
+		1 => 'https://extrachill.com',
+		7 => 'https://events.extrachill.com',
+		8 => 'https://foreign.example',
+	);
+	$base  = $sites[ $blog_id ] ?? '';
 	return $base . $path;
 }
 
@@ -203,4 +215,43 @@ $forged                                = apply_filters(
 roadie_scope_assert( PHP_INT_MAX === $forged['context']['wordpress']['blog_id'], 'Forged workspace/origin pairs should fail closed.' );
 roadie_scope_assert( ! isset( $forged['workspace'] ), 'Forged workspaces should not be projected.' );
 
-echo "Roadie network chat scope smoke passed (20 assertions).\n";
+$network_origin                                = $valid_origin;
+$network_origin['workspace']['workspace_type'] = 'network';
+$network_origin['workspace']['workspace_id']   = '9';
+$network_resolved                              = apply_filters(
+	'frontend_agent_chat_pending_action_resolve_input',
+	array( 'action_id' => 'act_network', 'decision' => 'accepted' ),
+	$request,
+	$network_origin,
+	array( 'agent_slug' => 'roadie' )
+);
+roadie_scope_assert( $network_origin['workspace'] === $network_resolved['workspace'], 'Current-network workspace origins should be accepted.' );
+roadie_scope_assert( 7 === $network_resolved['context']['wordpress']['blog_id'], 'Current-network workspace origins should retain their blog.' );
+
+$foreign_site = $valid_origin;
+$foreign_site['workspace']['workspace_id'] = 'https://foreign.example';
+$foreign_site['metadata']['datamachine']['context']['wordpress']['blog_id'] = 8;
+$foreign_site_result = apply_filters(
+	'frontend_agent_chat_pending_action_resolve_input',
+	array( 'action_id' => 'act_foreign_site', 'decision' => 'accepted' ),
+	$request,
+	$foreign_site,
+	array( 'agent_slug' => 'roadie' )
+);
+roadie_scope_assert( PHP_INT_MAX === $foreign_site_result['context']['wordpress']['blog_id'], 'A valid site workspace on another network should fail closed.' );
+roadie_scope_assert( ! isset( $foreign_site_result['workspace'] ), 'A foreign-network site workspace should not be projected.' );
+
+$foreign_network                                = $foreign_site;
+$foreign_network['workspace']['workspace_type'] = 'network';
+$foreign_network['workspace']['workspace_id']   = '10';
+$foreign_network_result                         = apply_filters(
+	'frontend_agent_chat_pending_action_resolve_input',
+	array( 'action_id' => 'act_foreign_network', 'decision' => 'accepted' ),
+	$request,
+	$foreign_network,
+	array( 'agent_slug' => 'roadie' )
+);
+roadie_scope_assert( PHP_INT_MAX === $foreign_network_result['context']['wordpress']['blog_id'], 'A valid network workspace on another network should fail closed.' );
+roadie_scope_assert( ! isset( $foreign_network_result['workspace'] ), 'A foreign network workspace should not be projected.' );
+
+echo "Roadie network chat scope smoke passed (26 assertions).\n";

@@ -1,6 +1,10 @@
 <?php
 /**
- * Cross-subsite integration smoke against the real Frontend Agent Chat adapter.
+ * Cross-subsite smoke against the real Frontend Agent Chat adapter.
+ *
+ * The stateful ability below is a local ownership contract double, not a real
+ * Data Machine or Agents API composition. Full dependency composition belongs
+ * to the disposable multisite journey tracked in Roadie issue #87.
  *
  * Run with:
  * ROADIE_FRONTEND_AGENT_CHAT_DIR=/path/to/frontend-agent-chat php tests/cross-subsite-fac-contract-smoke.php
@@ -130,17 +134,26 @@ class RoadieFACContractAbility {
 			return new WP_Error( 'workspace_or_owner_mismatch' );
 		}
 
-		return match ( $this->name ) {
-			'agents/queue-chat-message' => array( 'queued_message_id' => 'queued-1', 'session_id' => $session_id, 'run_id' => 'run-1' ),
-			'agents/get-conversation-session' => array( 'session' => $GLOBALS['roadie_fac_sessions'][ $session_id ] ),
-			'agents/mark-conversation-session-read' => self::mark_read( $session_id ),
-			'agents/delete-conversation-session' => self::delete( $session_id ),
-			'agents/update-conversation-session-title' => self::title( $session_id, (string) ( $input['title'] ?? '' ) ),
-			'agents/get-chat-run' => self::run( $session_id, $input, 'running' ),
-			'agents/list-chat-run-events' => self::run( $session_id, $input, 'running' ) + array( 'events' => array(), 'cursor' => '', 'has_more' => false ),
-			'agents/cancel-chat-run' => self::run( $session_id, $input, 'cancelling' ) + array( 'cancelled' => true ),
-			default => array(),
-		};
+		switch ( $this->name ) {
+			case 'agents/queue-chat-message':
+				return array( 'queued_message_id' => 'queued-1', 'session_id' => $session_id, 'run_id' => 'run-1' );
+			case 'agents/get-conversation-session':
+				return array( 'session' => $GLOBALS['roadie_fac_sessions'][ $session_id ] );
+			case 'agents/mark-conversation-session-read':
+				return self::mark_read( $session_id );
+			case 'agents/delete-conversation-session':
+				return self::delete( $session_id );
+			case 'agents/update-conversation-session-title':
+				return self::title( $session_id, (string) ( $input['title'] ?? '' ) );
+			case 'agents/get-chat-run':
+				return self::run( $session_id, $input, 'running' );
+			case 'agents/list-chat-run-events':
+				return self::run( $session_id, $input, 'running' ) + array( 'events' => array(), 'cursor' => '', 'has_more' => false );
+			case 'agents/cancel-chat-run':
+				return self::run( $session_id, $input, 'cancelling' ) + array( 'cancelled' => true );
+			default:
+				return array();
+		}
 	}
 
 	private static function matches( array $session, array $workspace, array $owner ): bool {
@@ -226,10 +239,20 @@ function get_current_blog_id(): int {
 	return (int) $GLOBALS['roadie_fac_blog_id'];
 }
 function get_site( int $blog_id ) {
-	return in_array( $blog_id, array( 1, 7 ), true ) ? (object) array( 'blog_id' => $blog_id ) : null;
+	if ( in_array( $blog_id, array( 1, 7 ), true ) ) {
+		return (object) array( 'blog_id' => $blog_id, 'site_id' => 9 );
+	}
+
+	return 8 === $blog_id ? (object) array( 'blog_id' => 8, 'site_id' => 10 ) : null;
 }
 function get_home_url( int $blog_id, string $path = '' ): string {
-	return ( 1 === $blog_id ? 'https://extrachill.com' : 'https://events.extrachill.com' ) . $path;
+	$sites = array(
+		1 => 'https://extrachill.com',
+		7 => 'https://events.extrachill.com',
+		8 => 'https://foreign.example',
+	);
+	$base  = $sites[ $blog_id ] ?? '';
+	return $base . $path;
 }
 function get_bloginfo( string $show ): string {
 	unset( $show );
@@ -368,6 +391,18 @@ $forged = $origin;
 $forged['workspace']['workspace_id'] = 'https://extrachill.com';
 $denied = frontend_agent_chat_rest_resolve_pending_action( new WP_REST_Request( array( 'action_id' => 'act_valid', 'decision' => 'accepted', 'origin' => $forged ) ) );
 $assert( $denied instanceof WP_Error && 'pending_action_origin_denied' === $denied->get_error_code(), 'Forged approval origin did not fail closed.' );
+
+$foreign_site = array(
+	'workspace' => array( 'workspace_type' => 'site', 'workspace_id' => 'https://foreign.example' ),
+	'metadata'  => array( 'datamachine' => array( 'context' => array( 'wordpress' => array( 'blog_id' => 8 ) ) ) ),
+);
+$foreign_site_denied = frontend_agent_chat_rest_resolve_pending_action( new WP_REST_Request( array( 'action_id' => 'act_valid', 'decision' => 'accepted', 'origin' => $foreign_site ) ) );
+$assert( $foreign_site_denied instanceof WP_Error && 'pending_action_origin_denied' === $foreign_site_denied->get_error_code(), 'A valid foreign-network site origin did not fail closed.' );
+
+$foreign_network = $foreign_site;
+$foreign_network['workspace'] = array( 'workspace_type' => 'network', 'workspace_id' => '10' );
+$foreign_network_denied = frontend_agent_chat_rest_resolve_pending_action( new WP_REST_Request( array( 'action_id' => 'act_valid', 'decision' => 'accepted', 'origin' => $foreign_network ) ) );
+$assert( $foreign_network_denied instanceof WP_Error && 'pending_action_origin_denied' === $foreign_network_denied->get_error_code(), 'A valid foreign network origin did not fail closed.' );
 
 $deleted = frontend_agent_chat_rest_delete_session( new WP_REST_Request( array( 'agent' => 'roadie', 'session_id' => 'roadie-session' ) ) );
 $assert( true === ( $deleted['data']['deleted'] ?? false ) && ! isset( $GLOBALS['roadie_fac_sessions']['roadie-session'] ), 'Subsite delete failed.' );

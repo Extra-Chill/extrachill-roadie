@@ -169,10 +169,16 @@ function extrachill_roadie_frontend_chat_pending_action_resolve_input( $input, $
 add_filter( 'frontend_agent_chat_pending_action_resolve_input', 'extrachill_roadie_frontend_chat_pending_action_resolve_input', 10, 4 );
 
 /**
- * Check that an origin workspace describes the claimed WordPress site/network.
+ * Check that an origin workspace describes a blog on Roadie's current network.
  */
 function extrachill_roadie_pending_action_origin_is_valid( string $workspace_type, string $workspace_id, int $blog_id ): bool {
-	if ( function_exists( 'get_site' ) && ! get_site( $blog_id ) ) {
+	if ( ! function_exists( 'get_site' ) || ! function_exists( 'get_current_network_id' ) ) {
+		return false;
+	}
+
+	$site       = get_site( $blog_id );
+	$network_id = (int) get_current_network_id();
+	if ( ! is_object( $site ) || $network_id <= 0 || (int) ( $site->site_id ?? 0 ) !== $network_id ) {
 		return false;
 	}
 
