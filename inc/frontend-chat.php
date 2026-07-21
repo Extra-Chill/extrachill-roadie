@@ -70,6 +70,7 @@ function extrachill_roadie_frontend_chat_input( $chat_input, $request, string $a
 	}
 
 	$chat_input['modes']          = extrachill_roadie_compose_modes( $chat_input['modes'] ?? array() );
+	$chat_input['workspace']      = extrachill_roadie_conversation_workspace();
 	$chat_input['client_context'] = extrachill_roadie_build_client_context(
 		is_array( $chat_input['client_context'] ?? null ) ? $chat_input['client_context'] : array(),
 		$request
@@ -79,6 +80,49 @@ function extrachill_roadie_frontend_chat_input( $chat_input, $request, string $a
 }
 add_filter( 'frontend_agent_chat_chat_input', 'extrachill_roadie_frontend_chat_input', 10, 4 );
 add_filter( 'frontend_agent_chat_queue_input', 'extrachill_roadie_frontend_chat_input', 10, 4 );
+
+/**
+ * Keep Roadie history in the same network workspace and execution context.
+ *
+ * @param array            $list_input Canonical conversation-session list input.
+ * @param \WP_REST_Request $request    REST request.
+ * @param string           $agent_slug Selected agent slug.
+ * @param array            $config     Frontend chat configuration.
+ * @return array Modified list input.
+ */
+function extrachill_roadie_frontend_chat_session_list_input( $list_input, $request, string $agent_slug, array $config ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $request and $config are required by the 4-arg filter signature.
+	if ( ! is_array( $list_input ) ) {
+		return array();
+	}
+
+	if ( EXTRACHILL_ROADIE_AGENT_SLUG !== sanitize_title( $agent_slug ) ) {
+		return $list_input;
+	}
+
+	$list_input['context']   = implode( ',', extrachill_roadie_compose_modes( array() ) );
+	$list_input['workspace'] = extrachill_roadie_conversation_workspace();
+
+	return $list_input;
+}
+add_filter( 'frontend_agent_chat_session_list_input', 'extrachill_roadie_frontend_chat_session_list_input', 10, 4 );
+
+/**
+ * Resolve Roadie's network-consistent conversation workspace.
+ *
+ * Data Machine already uses the canonical Agents API workspace value shape.
+ * A network workspace lets the same principal discover one Roadie history from
+ * every subsite without introducing a Roadie-owned transcript store.
+ *
+ * @return array{workspace_type:string,workspace_id:string}
+ */
+function extrachill_roadie_conversation_workspace(): array {
+	$network_id = function_exists( 'get_current_network_id' ) ? (int) get_current_network_id() : 1;
+
+	return array(
+		'workspace_type' => 'network',
+		'workspace_id'   => (string) max( 1, $network_id ),
+	);
+}
 
 /**
  * Compose the `roadie` mode on top of any modes already present.
