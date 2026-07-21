@@ -52,7 +52,8 @@ const EXTRACHILL_ROADIE_TIER_ADMIN = 'admin';
  *                every site; extrachill-users#45). Full platform management
  *                tool surface + code-contribution actions.
  *   - `public` — everyone else (logged out, or a logged-in user without team
- *                access). Explore/guidance only; no management tools offered.
+ *                capability). Individual tools and target routes still apply
+ *                their own resource authorization.
  *
  * A user_id of 0 (no human caller — system task, scheduled job, background
  * pipeline) resolves to `public`: there is no authenticated actor to grant
@@ -113,7 +114,7 @@ function extrachill_roadie_allowed_redirect_uris(): array {
 }
 
 /**
- * Grant team members access to the roadie agent.
+ * Grant team members viewer access to the roadie agent.
  *
  * Hooks `datamachine_can_access_agent` (a generic Data Machine
  * filter) and elevates EC team members to roadie-agent access. This
@@ -133,15 +134,19 @@ function extrachill_roadie_allowed_redirect_uris(): array {
  * @param bool   $can_access   Whether the user can access the agent.
  * @param int    $agent_id     Agent ID.
  * @param int    $user_id      User ID.
- * @param string $minimum_role Minimum role required.
+ * @param string $minimum_role Minimum role required. Team entitlement satisfies viewer only.
  * @return bool
  */
 function extrachill_roadie_team_access_bridge( bool $can_access, int $agent_id, int $user_id, string $minimum_role ): bool {
-	unset( $minimum_role );
-
 	// If already granted, no need to check further.
 	if ( $can_access ) {
 		return true;
+	}
+
+	// Team membership is the additive viewer entitlement used by the widget.
+	// Operator and admin semantics require canonical Agents API grants.
+	if ( 'viewer' !== $minimum_role ) {
+		return false;
 	}
 
 	// Only apply to the roadie agent.
@@ -162,16 +167,9 @@ add_filter( 'datamachine_can_access_agent', 'extrachill_roadie_team_access_bridg
 /**
  * Check whether the current user may see the Roadie chat surface at all.
  *
- * Widget visibility policy: Roadie is a team tool. Every signed-in user
- * whose tier resolves to `team` or `admin` (extrachill_roadie_user_tier())
- * gets the chat widget, the REST chat surface, and Roadie in the agent
- * selector. Public visitors and non-team accounts see nothing.
- *
- * This is the single, bidirectional policy predicate: it GRANTS team
- * members who have no explicit Agents API access-grant row (the store-only
- * path never consults the datamachine_can_access_agent team bridge, so
- * before this policy only explicitly-granted users could see the widget),
- * and it DENIES everyone else even if a stray grant row exists.
+ * This is the additive Extra Chill entitlement path. Canonical Agents API
+ * grants remain authoritative for non-team users and are preserved by the
+ * widget filters below.
  *
  * @since 0.19.0
  *
@@ -191,10 +189,9 @@ function extrachill_roadie_current_user_can_see_widget(): bool {
  * Decide frontend chat widget visibility for the Roadie agent.
  *
  * Hooks Frontend Agent Chat's visibility decision (`frontend_agent_chat_user_can_see`)
- * and replaces the store-derived decision with the tier policy for the Roadie
- * agent: team/admin → visible (even without an explicit access-grant row),
- * everyone else → hidden. Other agents (if any are ever exposed through the
- * widget) are unaffected — this is Roadie policy, not a global widget switch.
+ * and preserves the canonical grant-derived decision. Team/admin capability
+ * is an additive entitlement for Roadie, never a replacement for Agents API
+ * viewer/operator/admin grants.
  *
  * @since 0.19.0
  *
@@ -208,7 +205,7 @@ function extrachill_roadie_gate_widget_visibility( bool $allowed, ?array $agent 
 		return $allowed;
 	}
 
-	return extrachill_roadie_current_user_can_see_widget();
+	return $allowed || extrachill_roadie_current_user_can_see_widget();
 }
 add_filter( 'frontend_agent_chat_user_can_see', 'extrachill_roadie_gate_widget_visibility', 10, 2 );
 
@@ -217,10 +214,9 @@ add_filter( 'frontend_agent_chat_user_can_see', 'extrachill_roadie_gate_widget_v
  *
  * The widget enqueue path renders whenever the accessible-agents list is
  * non-empty, so the selector list is the load-bearing gate for whether the
- * FAB appears at all. Same bidirectional policy as
- * extrachill_roadie_gate_widget_visibility(): team/admin callers get Roadie
- * appended when the store-only ability omitted it (no explicit grant row);
- * everyone else gets Roadie stripped.
+ * FAB appears at all. Preserve every canonical accessible-agent result and
+ * append Roadie only for the additive team/admin capability path when the
+ * grant-derived list omitted it.
  *
  * @since 0.19.0
  *
@@ -233,39 +229,33 @@ function extrachill_roadie_gate_widget_agent_list( $agents ): array {
 	}
 
 	$has_roadie = false;
-	$filtered   = array();
 	foreach ( $agents as $agent ) {
 		$agent_slug = sanitize_title( (string) ( $agent['agent_slug'] ?? $agent['slug'] ?? '' ) );
 		if ( EXTRACHILL_ROADIE_AGENT_SLUG === $agent_slug ) {
 			$has_roadie = true;
-			continue;
+			break;
 		}
-		$filtered[] = $agent;
 	}
 
-	if ( ! extrachill_roadie_current_user_can_see_widget() ) {
-		return array_values( $filtered );
-	}
-
-	if ( $has_roadie ) {
+	if ( $has_roadie || ! extrachill_roadie_current_user_can_see_widget() ) {
 		return array_values( $agents );
 	}
 
 	$roadie = extrachill_roadie_get_agent();
 	if ( ! $roadie ) {
-		return array_values( $filtered );
+		return array_values( $agents );
 	}
 
 	$config = is_array( $roadie['agent_config'] ?? null ) ? $roadie['agent_config'] : array();
 
-	$filtered[] = array(
+	$agents[] = array(
 		'agent_slug'        => EXTRACHILL_ROADIE_AGENT_SLUG,
 		'agent_name'        => (string) ( $roadie['agent_name'] ?? EXTRACHILL_ROADIE_AGENT_NAME ),
 		'agent_description' => (string) ( $config['description'] ?? '' ),
 		'meta'              => array(),
 	);
 
-	return array_values( $filtered );
+	return array_values( $agents );
 }
 add_filter( 'frontend_agent_chat_accessible_agents', 'extrachill_roadie_gate_widget_agent_list', 10, 1 );
 

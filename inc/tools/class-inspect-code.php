@@ -53,6 +53,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 
 class ECRoadie_InspectCode extends BaseTool {
@@ -102,7 +104,7 @@ class ECRoadie_InspectCode extends BaseTool {
 		$this->registerTool(
 			$this->tool_slug,
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}
@@ -114,13 +116,21 @@ class ECRoadie_InspectCode extends BaseTool {
 	 */
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Read-only inspector for the SOURCE CODE of the current subsite\'s owning plugin or theme. Use this to GROUND UI/UX feedback in real source before describing or filing it — when a user says "the calendar map is too big" or "move the tonight button," call inspect_code to actually locate and read the relevant template/component instead of inventing element details you have not verified. This tool is strictly READ-ONLY: it can list directories, read files, and grep within the current subsite\'s owning component only. It cannot write, edit, or propose changes (use propose_code_change for that), and it cannot read anything outside the inferred plugin/theme directory (no wp-config, no secrets, no other site\'s files). Three actions: action="list_tree" returns the directory tree of the inferred component (optional subpath + depth to focus, e.g. subpath="templates"); action="read_file" reads one file you located (path relative to the component root, optional start_line/end_line to bound context); action="grep" searches the component for a term ("map", "tonight button", a CSS class) and returns matching file + line number + the matched line. Typical flow: grep for a term the user mentioned, then list_tree or read_file to read the file the grep pointed at, then describe the REAL markup. The owning component is inferred from the subsite the user is chatting on (e.g. events.extrachill.com -> extrachill-events); you do not specify it.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Read-only inspector for the SOURCE CODE of the current subsite\'s owning plugin or theme. Use this to GROUND UI/UX feedback in real source before describing or filing it — when a user says "the calendar map is too big" or "move the tonight button," call inspect_code to actually locate and read the relevant template/component instead of inventing element details you have not verified. This tool is strictly READ-ONLY: it can list directories, read files, and grep within the current subsite\'s owning component only. It cannot write, edit, or propose changes (use propose_code_change for that), and it cannot read anything outside the inferred plugin/theme directory (no wp-config, no secrets, no other site\'s files). Three actions: action="list_tree" returns the directory tree of the inferred component (optional subpath + depth to focus, e.g. subpath="templates"); action="read_file" reads one file you located (path relative to the component root, optional start_line/end_line to bound context); action="grep" searches the component for a term ("map", "tonight button", a CSS class) and returns matching file + line number + the matched line. Typical flow: grep for a term the user mentioned, then list_tree or read_file to read the file the grep pointed at, then describe the REAL markup. The owning component is inferred from the subsite the user is chatting on (e.g. events.extrachill.com -> extrachill-events); you do not specify it.',
+			'parameters'         => array(
 				'type'       => 'object',
-				'required'   => array( 'action' ),
+				'required'   => array( 'action', 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'action'     => array(
 						'type'        => 'string',
 						'enum'        => array( 'list_tree', 'read_file', 'grep' ),
@@ -174,7 +184,7 @@ class ECRoadie_InspectCode extends BaseTool {
 		// is far lower risk than proposing code, so this deliberately does NOT
 		// gate on extrachill_propose_code: a member with access_roadie but
 		// without propose-code rights MUST be able to inspect_code.
-		$cap_check = $this->check_team_capability();
+		$cap_check = $this->check_team_capability( $parameters );
 		if ( true !== $cap_check ) {
 			return $cap_check;
 		}
@@ -218,27 +228,15 @@ class ECRoadie_InspectCode extends BaseTool {
 	/**
 	 * Gate on team tier via the access_roadie capability.
 	 *
-	 * Reuses extrachill_roadie_user_tier() when available so the tier boundary
-	 * lives in exactly one place; falls back to a direct cap check when the
-	 * resolver is somehow unavailable. Either path requires team-or-above.
+	 * Checks the authoritative acting caller, never the ambient runtime owner.
+	 * The caller must carry either the team capability or administrator access.
 	 *
+	 * @param array $parameters Merged tool parameters.
 	 * @return true|array True when allowed, error response otherwise.
 	 */
-	protected function check_team_capability() {
-		$allowed = false;
-
-		if ( function_exists( 'extrachill_roadie_user_tier' ) ) {
-			$user_id = function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0;
-			$tier    = extrachill_roadie_user_tier( $user_id );
-			$allowed = in_array(
-				$tier,
-				array( EXTRACHILL_ROADIE_TIER_TEAM, EXTRACHILL_ROADIE_TIER_ADMIN ),
-				true
-			);
-		} else {
-			// phpcs:ignore WordPress.WP.Capabilities.Unknown -- Custom cap granted by the extra_chill_team role (extrachill-users#45).
-			$allowed = function_exists( 'current_user_can' ) && current_user_can( 'access_roadie' );
-		}
+	protected function check_team_capability( array $parameters ) {
+		$allowed = extrachill_roadie_acting_caller_can( $parameters, 'access_roadie' )
+			|| extrachill_roadie_acting_caller_can( $parameters, 'manage_options' );
 
 		if ( ! $allowed ) {
 			return $this->buildErrorResponse(

@@ -49,7 +49,7 @@ class ECRoadie_WritingAssistant extends ECRoadie_PlatformTool {
 		$this->registerTool(
 			'writing_assistant',
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'author' )
 		);
 	}
@@ -61,10 +61,17 @@ class ECRoadie_WritingAssistant extends ECRoadie_PlatformTool {
 	 */
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Work on the calling writer\'s own blog draft on the main Extra Chill site. Use "list_drafts" to find their drafts, "get_draft" to read one (returns the blog_id to pass to get_post_blocks/edit_post_blocks when proposing edits), and "submit_for_review" to send a finished draft to the editors (draft → pending). Drafts live on the MAIN site; the actual editing is done with the content tools (get_post_blocks, edit_post_blocks) using the blog_id this tool reports. Never publishes — editorial approval is a human step in wp-admin. Defaults to the calling user; admins may target another writer with user_id.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Work on the calling writer\'s own blog draft on the main Extra Chill site. Use "list_drafts" to find their drafts, "get_draft" to read one (returns the blog_id to pass to get_post_blocks/edit_post_blocks when proposing edits), and "submit_for_review" to send a finished draft to the editors (draft → pending). Drafts live on the MAIN site; the actual editing is done with the content tools (get_post_blocks, edit_post_blocks) using the blog_id this tool reports. Never publishes — editorial approval is a human step in wp-admin. Defaults to the calling user; admins may target another writer with user_id.',
+			'parameters'         => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'  => array(
@@ -79,8 +86,9 @@ class ECRoadie_WritingAssistant extends ECRoadie_PlatformTool {
 						'type'        => 'integer',
 						'description' => 'Target writer\'s user ID. Optional. Defaults to the calling user. Admin-only override.',
 					),
+					'calling_user_id' => array( 'type' => 'integer' ),
 				),
-				'required'   => array( 'action' ),
+				'required'   => array( 'action', 'calling_user_id' ),
 			),
 		);
 	}

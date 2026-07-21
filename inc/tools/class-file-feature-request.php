@@ -33,6 +33,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 
 class ECRoadie_FileFeatureRequest extends BaseTool {
@@ -54,7 +56,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		$this->registerTool(
 			$this->tool_slug,
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array(
 				'access_level'            => 'authenticated',
 				// Bind the per-turn client-context page_url into the `page_url`
@@ -79,11 +81,19 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 			'class'                   => self::class,
 			'method'                  => 'handle_tool_call',
 			'client_context_bindings' => array( 'page_url' => 'page_url' ),
+			'parameter_bindings'      => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
 			'description'             => 'When the user wants to track something on GitHub — a feature request, a bug report, or any "open an issue on github" / "file an issue" / "report a bug" ask — use this tool to file or look up GitHub issues against the appropriate Extra Chill repo. This is ALWAYS the right tool for filing GitHub issues; never use create_taxonomy_term (which makes a category/tag term, not a GitHub issue) for issue/bug-report requests. Three actions are supported: action="file_issue" creates a new issue (requires title, body; repo is optional and auto-inferred from the current subsite when omitted); action="list_recent_issues" finds existing open issues to dedupe against (optional repo/labels/state); action="comment_on_issue" adds a comment to an existing issue (requires issue_number, body; repo optional). When the user is chatting from the subsite that owns the code, leave repo unset and it will be inferred from page context — do not interrogate the user for the repo. Before filing new issues, prefer calling list_recent_issues first with a few keywords from the proposed title to surface duplicates and ask the user whether to comment on an existing thread instead. Use propose_code_change instead when the user wants the change implemented, not just tracked.',
 			'parameters'              => array(
 				'type'       => 'object',
-				'required'   => array( 'action' ),
+				'required'   => array( 'action', 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'action'       => array(
 						'type'        => 'string',
 						'enum'        => array( 'file_issue', 'list_recent_issues', 'comment_on_issue' ),
@@ -146,7 +156,7 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 		// who can propose a code change should also be able to file an idea;
 		// keeping these on one cap avoids a parallel grant flow for operators.
 		$cap = defined( 'EXTRACHILL_ROADIE_PROPOSE_CODE_CAP' ) ? EXTRACHILL_ROADIE_PROPOSE_CODE_CAP : 'extrachill_propose_code';
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! extrachill_roadie_acting_caller_can( $parameters, $cap ) ) {
 			return $this->buildErrorResponse(
 				sprintf(
 					'You do not have permission to file feature requests. Ask an administrator to grant the "%s" capability.',
@@ -927,30 +937,16 @@ class ECRoadie_FileFeatureRequest extends BaseTool {
 	/**
 	 * Add a "Filed via Roadie chat by <user>" footer to issue/comment bodies.
 	 *
-	 * Priority order for proposer identity (post #8):
-	 *   1. `$parameters['calling_user_id']` — the human on whose behalf the
-	 *      agent loop is running (set by `ChatOrchestrator` and propagated
-	 *      through `ToolParameters::buildParameters` per the
-	 *      `datamachine_get_calling_user_id()` contract).
-	 *   2. `get_current_user_id()` — fallback when the tool is invoked
-	 *      outside an agent loop (CLI, smoke test, direct REST).
+	 * `$parameters['calling_user_id']` is injected authoritatively from the
+	 * agent loop's trusted caller context. Missing or zero caller identity is
+	 * never replaced with the ambient WordPress user.
 	 *
 	 * @param string $body       Original body.
 	 * @param array  $parameters Tool parameters (may carry `calling_user_id`).
 	 * @return string Augmented body.
 	 */
 	protected function augment_body_with_attribution( string $body, array $parameters = array() ): string {
-		$user_id = 0;
-
-		if ( function_exists( 'datamachine_get_calling_user_id' ) ) {
-			$user_id = (int) datamachine_get_calling_user_id( $parameters );
-		} elseif ( isset( $parameters['calling_user_id'] ) ) {
-			$user_id = (int) $parameters['calling_user_id'];
-		}
-
-		if ( $user_id <= 0 && function_exists( 'get_current_user_id' ) ) {
-			$user_id = (int) get_current_user_id();
-		}
+		$user_id = extrachill_roadie_resolve_acting_caller( $parameters );
 
 		$username = '';
 		$display  = '';

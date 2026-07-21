@@ -117,13 +117,26 @@ if ( ! function_exists( 'wp_get_theme' ) ) {
 
 if ( ! function_exists( 'current_user_can' ) ) {
 	function current_user_can( string $cap ): bool {
-		return ! empty( $GLOBALS['extrachill_roadie_test_state']['user_caps'][ $cap ] );
+		return user_can( get_current_user_id(), $cap );
 	}
 }
 
 if ( ! function_exists( 'get_current_user_id' ) ) {
 	function get_current_user_id(): int {
 		return (int) ( $GLOBALS['extrachill_roadie_test_state']['current_user_id'] ?? 0 );
+	}
+}
+
+if ( ! function_exists( 'user_can' ) ) {
+	function user_can( $user_id, string $cap ): bool {
+		$user_id      = (int) $user_id;
+		$caps_by_user = $GLOBALS['extrachill_roadie_test_state']['caps_by_user'][ $user_id ] ?? null;
+		if ( is_array( $caps_by_user ) ) {
+			return ! empty( $caps_by_user[ $cap ] );
+		}
+
+		return $user_id === get_current_user_id()
+			&& ! empty( $GLOBALS['extrachill_roadie_test_state']['user_caps'][ $cap ] );
 	}
 }
 

@@ -29,17 +29,24 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		$this->registerTool(
 			'manage_community',
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}
 
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Interact with the Extra Chill community forums. Browse forums, list and read topics, create new topics, post replies, and manage notifications. Forum posts and replies are attributed to the calling user by default; admins may override via user_id. All actions run on community.extrachill.com.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Interact with the Extra Chill community forums. Browse forums, list and read topics, create new topics, post replies, and manage notifications. Forum posts and replies are attributed to the calling user by default; admins may override via user_id. All actions run on community.extrachill.com.',
+			'parameters'         => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'          => array(
@@ -50,6 +57,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 						'type'        => 'integer',
 						'description' => 'Target user ID for write actions (create_topic, create_reply) and notification reads. Optional. Defaults to the calling user. Admin-only override.',
 					),
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'forum_id'        => array(
 						'type'        => 'integer',
 						'description' => 'Forum ID. Required for "create_topic". Optional filter for "list_topics".',

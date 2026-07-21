@@ -31,6 +31,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 use DataMachineCode\Support\GitHubCredentialResolver;
 
@@ -42,7 +44,7 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 		$this->registerTool(
 			$this->tool_slug,
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}
@@ -54,13 +56,21 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 	 */
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'When the user describes a code change they want made to this site (a typo fix, copy change, a small feature, etc.), use this tool to dispatch a sandboxed coding agent that implements the change in an isolated WordPress Playground. The sandbox produces a reviewable patch artifact and a live preview URL — it does NOT push code or open a pull request. After this tool returns, surface the preview URL and summary to the user and ask them to approve. When the user approves, call apply_code_change with the returned artifact_id to commit the change and open a PR.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'When the user describes a code change they want made to this site (a typo fix, copy change, a small feature, etc.), use this tool to dispatch a sandboxed coding agent that implements the change in an isolated WordPress Playground. The sandbox produces a reviewable patch artifact and a live preview URL — it does NOT push code or open a pull request. After this tool returns, surface the preview URL and summary to the user and ask them to approve. When the user approves, call apply_code_change with the returned artifact_id to commit the change and open a PR.',
+			'parameters'         => array(
 				'type'       => 'object',
-				'required'   => array( 'task_description' ),
+				'required'   => array( 'task_description', 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'task_description' => array(
 						'type'        => 'string',
 						'description' => 'Natural-language description of the code change to make. Include enough context that a coding agent could implement it without further questions — what to change, where (file/component/page if known), and the desired outcome.',
@@ -80,8 +90,9 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		unset( $tool_def );
 
-		// 1. Capability check.
-		if ( ! current_user_can( EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ) ) {
+		// 1. Capability check against the authoritative acting caller.
+		$calling_user_id = extrachill_roadie_resolve_acting_caller( $parameters );
+		if ( ! extrachill_roadie_acting_caller_can( $parameters, EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ) ) {
 			return $this->buildErrorResponse(
 				'You do not have permission to propose code changes. Ask an administrator to grant the "extrachill_propose_code" capability.',
 				$this->tool_slug
@@ -164,7 +175,7 @@ class ECRoadie_ProposeCodeChange extends BaseTool {
 				),
 				'editable_targets' => $recipe['editable_targets'],
 				'unmapped_plugins' => $recipe['unmapped_active_plugins'],
-				'proposer_user_id' => function_exists( 'get_current_user_id' ) ? (int) get_current_user_id() : 0,
+				'proposer_user_id' => $calling_user_id,
 			),
 		);
 

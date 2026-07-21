@@ -17,6 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 
 abstract class ECRoadie_PlatformTool extends BaseTool {
@@ -105,45 +107,11 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 	}
 
 	/**
-	 * Read the calling user ID from the merged tool parameters.
-	 *
-	 * Data Machine's ToolParameters::buildParameters() merges the loop payload
-	 * INTO the tool's $parameters array before calling handle_tool_call(). The
-	 * loop payload sets `calling_user_id` from the chat orchestrator's loop
-	 * context — so every tool sees it as $parameters['calling_user_id'].
-	 *
-	 * Returns 0 when absent, non-numeric, or non-positive — matching the
-	 * datamachine_get_calling_user_id() contract from data-machine core.
-	 *
-	 * @since 0.8.0
-	 *
-	 * @param array $parameters Tool parameters (post payload-merge).
-	 * @return int Non-negative user ID. 0 means "no human caller".
-	 */
-	protected function get_calling_user_id( array $parameters ): int {
-		// Prefer the canonical core helper when available so we stay in sync
-		// with any future contract changes.
-		if ( function_exists( 'datamachine_get_calling_user_id' ) ) {
-			return datamachine_get_calling_user_id( $parameters );
-		}
-
-		$raw = $parameters['calling_user_id'] ?? 0;
-		if ( ! is_numeric( $raw ) ) {
-			return 0;
-		}
-
-		$user_id = (int) $raw;
-		return $user_id > 0 ? $user_id : 0;
-	}
-
-	/**
 	 * Resolve the user ID this invocation should act on behalf of.
 	 *
 	 * Priority order:
-	 *   1. Explicit `user_id` input from the AI (override).
-	 *   2. `calling_user_id` from the loop payload (human caller in chat).
-	 *   3. `get_current_user_id()` as last resort (REST/CLI without explicit
-	 *      calling-user context).
+	 *   1. Explicit `user_id` input from the AI (admin-only target override).
+	 *   2. Authoritative `calling_user_id` injected from trusted caller context.
 	 *
 	 * Returns 0 only when no user is resolvable — caller must handle that
 	 * case explicitly (typically a "you must be logged in" error response).
@@ -161,13 +129,7 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 			}
 		}
 
-		$calling = $this->get_calling_user_id( $parameters );
-		if ( $calling > 0 ) {
-			return $calling;
-		}
-
-		$current = (int) get_current_user_id();
-		return $current > 0 ? $current : 0;
+		return extrachill_roadie_resolve_acting_caller( $parameters );
 	}
 
 	/**
@@ -196,17 +158,16 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 			);
 		}
 
-		$calling = $this->get_calling_user_id( $parameters );
+		$caller = extrachill_roadie_resolve_acting_caller( $parameters );
 
-		// Effective caller: the human on whose behalf the agent is acting in
-		// this invocation. Fall back to the current WP user when there is no
-		// chat caller (REST/CLI contexts).
-		$caller = $calling > 0 ? $calling : (int) get_current_user_id();
+		if ( $caller <= 0 ) {
+			return $this->buildErrorResponse(
+				'Permission denied: no authenticated acting caller is available for this user-scoped action.',
+				$this->tool_slug
+			);
+		}
 
-		// Acting as yourself, or no caller at all (system task), is allowed.
-		// System tasks (calling_user_id = 0, current_user = 0) reach internal
-		// abilities directly and have their own permission gates.
-		if ( $caller <= 0 || $caller === $acting_user_id ) {
+		if ( $caller === $acting_user_id ) {
 			return null;
 		}
 

@@ -31,6 +31,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/caller.php';
+
 use DataMachine\Engine\AI\Tools\BaseTool;
 use DataMachineCode\Support\GitHubCredentialResolver;
 
@@ -42,7 +44,7 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 		$this->registerTool(
 			$this->tool_slug,
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}
@@ -52,13 +54,21 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 	 */
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Apply a previously-generated sandbox artifact: create a worktree for each affected repo, apply the patch, commit with a conventional commit message, push the branch, and open a pull request. Only call this AFTER the user has explicitly approved the proposed change (do not auto-apply). Requires artifact_id from a prior propose_code_change call.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Apply a previously-generated sandbox artifact: create a worktree for each affected repo, apply the patch, commit with a conventional commit message, push the branch, and open a pull request. Only call this AFTER the user has explicitly approved the proposed change (do not auto-apply). Requires artifact_id from a prior propose_code_change call.',
+			'parameters'         => array(
 				'type'       => 'object',
-				'required'   => array( 'artifact_id' ),
+				'required'   => array( 'artifact_id', 'calling_user_id' ),
 				'properties' => array(
+					'calling_user_id'    => array( 'type' => 'integer' ),
 					'artifact_id'         => array(
 						'type'        => 'string',
 						'description' => 'Artifact bundle id returned by propose_code_change.',
@@ -80,7 +90,7 @@ class ECRoadie_ApplyCodeChange extends BaseTool {
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		unset( $tool_def );
 
-		if ( ! current_user_can( EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ) ) {
+		if ( ! extrachill_roadie_acting_caller_can( $parameters, EXTRACHILL_ROADIE_PROPOSE_CODE_CAP ) ) {
 			return $this->buildErrorResponse(
 				'You do not have permission to apply code changes. Ask an administrator to grant the "extrachill_propose_code" capability.',
 				$this->tool_slug

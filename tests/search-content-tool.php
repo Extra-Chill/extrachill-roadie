@@ -3,7 +3,7 @@
  * Smoke tests for the read-only, public search_content chat tool.
  *
  * Covers:
- *   - Tool registers via the datamachine_tools filter for chat mode with
+ *   - Tool registers via the datamachine_tools filter for roadie mode with
  *     PUBLIC access_level (a logged-out visitor benefits — the catalog is
  *     public), and exposes no client-context binding.
  *   - Tool definition is read-only: params are exactly {query, post_types,
@@ -124,7 +124,7 @@ roadie_test_assert(
 );
 
 $reg = $GLOBALS['extrachill_roadie_test_state']['registered_tools']['search_content'];
-roadie_test_assert( in_array( 'chat', $reg['modes'], true ), 'tool must register for chat mode' );
+roadie_test_assert( array( 'roadie' ) === $reg['modes'], 'tool must register only for roadie mode' );
 roadie_test_assert(
 	'public' === ( $reg['meta']['access_level'] ?? '' ),
 	'tool must be PUBLIC access_level — the catalog is public, visitors benefit'

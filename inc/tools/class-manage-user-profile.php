@@ -34,17 +34,24 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 		$this->registerTool(
 			'manage_user_profile',
 			array( $this, 'getToolDefinition' ),
-			array( 'chat' ),
+			array( 'roadie' ),
 			array( 'access_level' => 'authenticated' )
 		);
 	}
 
 	public function getToolDefinition(): array {
 		return array(
-			'class'       => self::class,
-			'method'      => 'handle_tool_call',
-			'description' => 'Manage a user\'s Extra Chill profile. Defaults to the calling user. Admins can target another user by passing user_id. Can get profile details, update bio/title/local scene and its visibility, or replace profile links. Profile links are different from artist link pages — these are the links shown on the user\'s community profile.',
-			'parameters'  => array(
+			'class'              => self::class,
+			'method'             => 'handle_tool_call',
+			'parameter_bindings' => array(
+				'calling_user_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'calling_user_id',
+					'authoritative' => true,
+				),
+			),
+			'description'        => 'Manage a user\'s Extra Chill profile. Defaults to the calling user. Admins can target another user by passing user_id. Can get profile details, update bio/title/local scene and its visibility, or replace profile links. Profile links are different from artist link pages — these are the links shown on the user\'s community profile.',
+			'parameters'         => array(
 				'type'       => 'object',
 				'properties' => array(
 					'action'       => array(
@@ -55,6 +62,7 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 						'type'        => 'integer',
 						'description' => 'Target user ID. Optional. Defaults to the calling user. Admin-only override — non-admins targeting another user get a permission error.',
 					),
+					'calling_user_id' => array( 'type' => 'integer' ),
 					'custom_title' => array(
 						'type'        => 'string',
 						'description' => 'Custom profile title (e.g. "Music Producer", "Concert Photographer"). Used in "update".',
@@ -82,7 +90,7 @@ class ECRoadie_ManageUserProfile extends ECRoadie_PlatformTool {
 						'description' => 'Array of profile links for "update_links". Each: {type_key, url, custom_label?}. Valid type_key values: website, facebook, instagram, twitter, youtube, tiktok, spotify, soundcloud, bandcamp, github, other. Full replacement — all existing links are replaced.',
 					),
 				),
-				'required'   => array( 'action' ),
+				'required'   => array( 'action', 'calling_user_id' ),
 			),
 		);
 	}

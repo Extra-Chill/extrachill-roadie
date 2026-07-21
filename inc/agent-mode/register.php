@@ -64,13 +64,10 @@ add_action(
  * it is persona, so it lives in Roadie's SOUL.md (the identity layer), not in
  * this operating-context mode block.
  *
- * The guidance is **role-aware**: the network topology and cross-site
- * conventions are shared across all tiers, but the
- * available-tools section, the operating posture, and the identity block vary
- * by the caller's role tier (public / team / admin) as resolved by
- * extrachill_roadie_user_tier(). This keeps a public visitor from being told
- * about management tools they cannot use, while giving team/admin callers the
- * full manual. One function, DRY shared sections, branch on tier.
+ * The guidance is caller-aware: invocations without an authenticated acting
+ * caller stay read-only, while authenticated callers receive the tool manual.
+ * Agent entitlement is decided before this mode runs; resource ownership and
+ * write authorization remain with each target ability or route.
  *
  * @since 0.8.0
  * @since 0.10.0 Role-aware: guidance body varies by caller tier.
@@ -92,6 +89,9 @@ function extrachill_roadie_mode_guidance( string $content, array $payload ): str
 	$tier = function_exists( 'extrachill_roadie_user_tier' )
 		? extrachill_roadie_user_tier( $calling_user_id )
 		: EXTRACHILL_ROADIE_TIER_PUBLIC;
+	if ( $calling_user_id > 0 && EXTRACHILL_ROADIE_TIER_PUBLIC === $tier ) {
+		$tier = 'user';
+	}
 
 	$guidance = extrachill_roadie_compose_guidance( $tier, $calling_user_id );
 
@@ -112,7 +112,7 @@ function extrachill_roadie_mode_guidance( string $content, array $payload ): str
  *
  * @since 0.10.0
  *
- * @param string $tier            Role tier: `public`, `team`, or `admin`.
+ * @param string $tier            Caller tier: `public`, `user`, `team`, or `admin`.
  * @param int    $calling_user_id Resolved calling user ID (0 = no human caller).
  * @return string Composed guidance markdown.
  */
@@ -128,8 +128,8 @@ function extrachill_roadie_compose_guidance( string $tier, int $calling_user_id 
 		return extrachill_roadie_assemble_guidance( $intro, $topology, $tools, $identity, $posture );
 	}
 
-	// Team and admin share the full platform manual; the identity contract and a
-	// short admin addendum are the only differences.
+	// Authenticated entitled users, team members, and admins share the tool
+	// manual. Each target ability/route remains responsible for resource access.
 	$intro = 'This context is active when you operate against the Extra Chill multisite network — a publication and community platform for independent music. You have a tool surface for managing artist profiles, link pages, user profiles, and the community forum.';
 	$tools = extrachill_roadie_guidance_tools_team( EXTRACHILL_ROADIE_TIER_ADMIN === $tier );
 
@@ -190,7 +190,7 @@ MD;
 }
 
 /**
- * Public tier: available tools (explore only — no management tools offered).
+ * No-caller tier: available tools (explore only).
  *
  * @since 0.10.0
  * @return string
@@ -199,7 +199,7 @@ function extrachill_roadie_guidance_tools_public(): string {
 	return <<<'MD'
 ## What You Can Help With
 
-You are talking to a visitor, so you do **not** have the platform management tools right now — those unlock when an Extra Chill team member signs in. But you DO have one read-only tool, and it is your most important one here:
+There is no authenticated acting caller, so do **not** perform user-scoped platform operations. Use the read-only discovery surface instead:
 
 - `search_content` — search Extra Chill's published catalog (2,800+ articles: artist coverage, song-meaning and music-history pieces, festival/show coverage, the deep Grateful Dead / Jerry Garcia writing) across the whole network. Use it to GROUND any answer about Extra Chill's coverage, an artist, a song, music history, or a quote in the real articles, with sources — never answer those from memory. It returns citation cards (title, link, excerpt) you can point the visitor to.
 
@@ -207,9 +207,9 @@ Beyond that, keep it to exploring and explaining:
 
 - Help them understand what Extra Chill is: an independent music publication + community for independent artists and fans.
 - Point them to the right corner of the network for what they want (read the community forum, browse artist profiles, check out the news wire, the events calendar, the shop).
-- If they want to manage their **own** artist profile, link page, user profile, or post in the community, tell them to sign in with an Extra Chill account — those actions need a logged-in team member, and the tools appear once they do.
+- If they want to manage their **own** artist profile, link page, user profile, or post in the community, tell them to sign in with an account that has Roadie access.
 
-Do not promise to perform management actions (creating/updating profiles, posting to the forum, filing feature requests, proposing code) — you cannot do those for a visitor. Be upfront and friendly about that boundary instead of attempting a tool you don't have.
+Do not promise to perform user-scoped management actions (creating/updating profiles or posting to the forum) without an authenticated caller. Be upfront and friendly about that boundary instead of attempting an operation that must fail closed.
 MD;
 }
 
@@ -286,7 +286,7 @@ function extrachill_roadie_guidance_identity_public(): string {
 	return <<<'MD'
 ## Calling-User Identity Contract
 
-This is an unauthenticated (or non-team) visitor. There is no user context to act on behalf of, and no management tools are available. Keep everything read-only and conversational; for anything that would change platform data, point them to sign in.
+There is no authenticated acting caller. There is no user context to act on behalf of, so keep user-scoped operations read-only and point the visitor toward signing in.
 MD;
 }
 
