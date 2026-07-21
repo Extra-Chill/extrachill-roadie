@@ -1,6 +1,6 @@
 <?php
 /**
- * Smoke tests for Roadie's cross-subsite conversation scope.
+ * Smoke tests for Roadie's canonical workspace and approval-origin filters.
  *
  * Run with: php tests/network-chat-scope-smoke.php
  *
@@ -44,8 +44,25 @@ function esc_url_raw( $value ): string {
 	return filter_var( (string) $value, FILTER_SANITIZE_URL );
 }
 
+function absint( $value ): int {
+	return abs( (int) $value );
+}
+
+function untrailingslashit( string $value ): string {
+	return rtrim( $value, '/\\' );
+}
+
 function get_current_network_id(): int {
 	return (int) $GLOBALS['roadie_scope_network_id'];
+}
+
+function get_site( int $blog_id ) {
+	return in_array( $blog_id, array( 1, 7 ), true ) ? (object) array( 'blog_id' => $blog_id ) : null;
+}
+
+function get_home_url( int $blog_id, string $path = '' ): string {
+	$base = 1 === $blog_id ? 'https://extrachill.com' : 'https://events.extrachill.com';
+	return $base . $path;
 }
 
 function get_bloginfo( string $show ): string {
@@ -54,7 +71,7 @@ function get_bloginfo( string $show ): string {
 }
 
 function home_url(): string {
-	return 1 === $GLOBALS['roadie_scope_blog_id'] ? 'https://extrachill.com' : 'https://events.extrachill.com';
+	return get_home_url( (int) $GLOBALS['roadie_scope_blog_id'] );
 }
 
 function wp_parse_url( string $url, int $component ) {
@@ -93,48 +110,97 @@ define( 'EXTRACHILL_ROADIE_AGENT_SLUG', 'roadie' );
 define( 'EXTRACHILL_ROADIE_AGENT_NAME', 'Roadie' );
 require_once dirname( __DIR__ ) . '/inc/frontend-chat.php';
 
-$inputs = array();
-foreach ( array( 1, 7 ) as $blog_id ) {
-	$GLOBALS['roadie_scope_blog_id'] = $blog_id;
-	$inputs[ $blog_id ]              = apply_filters(
-		'frontend_agent_chat_chat_input',
-		array( 'agent' => 'roadie' ),
-		new WP_REST_Request( array( 'page_url' => home_url() . '/calendar/' ) ),
-		'roadie',
-		array()
-	);
-}
-
 $expected_workspace = array(
 	'workspace_type' => 'network',
 	'workspace_id'   => '9',
 );
-roadie_scope_assert( $expected_workspace === $inputs[1]['workspace'], 'Main-site chat should use the network workspace.' );
-roadie_scope_assert( $expected_workspace === $inputs[7]['workspace'], 'Subsite chat should use the same network workspace.' );
-roadie_scope_assert( array( 'chat', 'roadie' ) === $inputs[1]['modes'], 'Roadie chat should retain the combined execution modes.' );
-roadie_scope_assert( 'extrachill.com' === $inputs[1]['client_context']['site_host'], 'Main-site origin context should be preserved.' );
-roadie_scope_assert( 'events.extrachill.com' === $inputs[7]['client_context']['site_host'], 'Subsite origin context should be preserved independently of transcript scope.' );
+$workspace_abilities = array(
+	'agents/chat',
+	'agents/queue-chat-message',
+	'agents/list-conversation-sessions',
+	'agents/get-conversation-session',
+	'agents/mark-conversation-session-read',
+	'agents/delete-conversation-session',
+	'agents/update-conversation-session-title',
+	'agents/get-chat-run',
+	'agents/list-chat-run-events',
+	'agents/cancel-chat-run',
+);
 
-$history = apply_filters(
-	'frontend_agent_chat_session_list_input',
-	array(
-		'agent'   => 'roadie',
-		'context' => 'chat',
-	),
-	new WP_REST_Request(),
+foreach ( $workspace_abilities as $ability ) {
+	$input = apply_filters(
+		'frontend_agent_chat_ability_input',
+		array( 'context' => 'chat' ),
+		$ability,
+		new WP_REST_Request(),
+		'roadie',
+		array( 'agent_slug' => 'roadie' )
+	);
+	roadie_scope_assert( $expected_workspace === $input['workspace'], $ability . ' should receive the canonical network workspace.' );
+	if ( 'agents/list-conversation-sessions' === $ability ) {
+		roadie_scope_assert( 'chat,roadie' === $input['context'], 'History should query Roadie\'s exact combined context.' );
+	}
+}
+
+$legacy_chat = apply_filters(
+	'frontend_agent_chat_chat_input',
+	array( 'agent' => 'roadie' ),
+	new WP_REST_Request( array( 'page_url' => 'https://events.extrachill.com/calendar/' ) ),
 	'roadie',
 	array()
 );
-roadie_scope_assert( 'chat,roadie' === $history['context'], 'History should query Roadie\'s exact combined context.' );
-roadie_scope_assert( $expected_workspace === $history['workspace'], 'History should query the same network workspace as creation.' );
+roadie_scope_assert( ! isset( $legacy_chat['workspace'] ), 'Legacy chat filter should no longer own workspace assignment.' );
+roadie_scope_assert( array( 'chat', 'roadie' ) === $legacy_chat['modes'], 'Legacy chat filter should retain combined execution modes.' );
 
 $other_agent = apply_filters(
-	'frontend_agent_chat_session_list_input',
-	array( 'context' => 'chat' ),
+	'frontend_agent_chat_ability_input',
+	array(),
+	'agents/get-conversation-session',
 	new WP_REST_Request(),
 	'other-agent',
-	array()
+	array( 'agent_slug' => 'other-agent' )
 );
 roadie_scope_assert( ! isset( $other_agent['workspace'] ), 'Other agents should keep their existing workspace behavior.' );
 
-echo "Roadie network chat scope smoke passed (8 assertions).\n";
+$valid_origin = array(
+	'workspace' => array(
+		'workspace_type' => 'site',
+		'workspace_id'   => 'https://events.extrachill.com',
+	),
+	'metadata'  => array(
+		'datamachine' => array(
+			'context' => array(
+				'wordpress' => array( 'blog_id' => 7 ),
+				'trace_id'  => 'must-not-project',
+			),
+		),
+		'private'     => 'must-not-project',
+	),
+	'context'   => array( 'browser_supplied' => 'must-not-project' ),
+);
+$request      = new WP_REST_Request( array( 'client_context' => array( 'wordpress' => array( 'blog_id' => 1 ) ) ) );
+$resolved     = apply_filters(
+	'frontend_agent_chat_pending_action_resolve_input',
+	array( 'action_id' => 'act_valid', 'decision' => 'accepted' ),
+	$request,
+	$valid_origin,
+	array( 'agent_slug' => 'roadie' )
+);
+roadie_scope_assert( $valid_origin['workspace'] === $resolved['workspace'], 'Validated stored workspace should be projected unchanged.' );
+roadie_scope_assert( array( 'wordpress' => array( 'blog_id' => 7 ) ) === $resolved['context'], 'Only canonical WordPress origin should be projected.' );
+roadie_scope_assert( ! isset( $resolved['metadata'] ), 'Opaque pending-action metadata must not reach the resolver.' );
+roadie_scope_assert( ! isset( $resolved['context']['browser_supplied'] ), 'Browser client context must never become resolver context.' );
+
+$forged_origin                         = $valid_origin;
+$forged_origin['workspace']['workspace_id'] = 'https://extrachill.com';
+$forged                                = apply_filters(
+	'frontend_agent_chat_pending_action_resolve_input',
+	array( 'action_id' => 'act_forged', 'decision' => 'accepted' ),
+	$request,
+	$forged_origin,
+	array( 'agent_slug' => 'roadie' )
+);
+roadie_scope_assert( PHP_INT_MAX === $forged['context']['wordpress']['blog_id'], 'Forged workspace/origin pairs should fail closed.' );
+roadie_scope_assert( ! isset( $forged['workspace'] ), 'Forged workspaces should not be projected.' );
+
+echo "Roadie network chat scope smoke passed (20 assertions).\n";

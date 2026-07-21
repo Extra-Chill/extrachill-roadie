@@ -70,7 +70,6 @@ function extrachill_roadie_frontend_chat_input( $chat_input, $request, string $a
 	}
 
 	$chat_input['modes']          = extrachill_roadie_compose_modes( $chat_input['modes'] ?? array() );
-	$chat_input['workspace']      = extrachill_roadie_conversation_workspace();
 	$chat_input['client_context'] = extrachill_roadie_build_client_context(
 		is_array( $chat_input['client_context'] ?? null ) ? $chat_input['client_context'] : array(),
 		$request
@@ -82,29 +81,124 @@ add_filter( 'frontend_agent_chat_chat_input', 'extrachill_roadie_frontend_chat_i
 add_filter( 'frontend_agent_chat_queue_input', 'extrachill_roadie_frontend_chat_input', 10, 4 );
 
 /**
- * Keep Roadie history in the same network workspace and execution context.
+ * Apply Roadie's network workspace to the complete conversation lifecycle.
  *
- * @param array            $list_input Canonical conversation-session list input.
+ * @param array            $input      Canonical ability input.
+ * @param string           $ability    Canonical ability name.
  * @param \WP_REST_Request $request    REST request.
  * @param string           $agent_slug Selected agent slug.
  * @param array            $config     Frontend chat configuration.
- * @return array Modified list input.
+ * @return array Modified ability input.
  */
-function extrachill_roadie_frontend_chat_session_list_input( $list_input, $request, string $agent_slug, array $config ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $request and $config are required by the 4-arg filter signature.
-	if ( ! is_array( $list_input ) ) {
+function extrachill_roadie_frontend_chat_ability_input( $input, string $ability, $request, string $agent_slug, array $config ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $request is required by the generic FAC filter signature.
+	if ( ! is_array( $input ) ) {
 		return array();
 	}
 
-	if ( EXTRACHILL_ROADIE_AGENT_SLUG !== sanitize_title( $agent_slug ) ) {
-		return $list_input;
+	if ( ! extrachill_roadie_frontend_chat_targets_roadie( $agent_slug, $config ) ) {
+		return $input;
 	}
 
-	$list_input['context']   = implode( ',', extrachill_roadie_compose_modes( array() ) );
-	$list_input['workspace'] = extrachill_roadie_conversation_workspace();
+	$workspace_abilities = array(
+		'agents/chat',
+		'agents/queue-chat-message',
+		'agents/list-conversation-sessions',
+		'agents/get-conversation-session',
+		'agents/mark-conversation-session-read',
+		'agents/delete-conversation-session',
+		'agents/update-conversation-session-title',
+		'agents/get-chat-run',
+		'agents/list-chat-run-events',
+		'agents/cancel-chat-run',
+	);
+	if ( ! in_array( $ability, $workspace_abilities, true ) ) {
+		return $input;
+	}
 
-	return $list_input;
+	$input['workspace'] = extrachill_roadie_conversation_workspace();
+	if ( 'agents/list-conversation-sessions' === $ability ) {
+		$input['context'] = implode( ',', extrachill_roadie_compose_modes( array() ) );
+	}
+
+	return $input;
 }
-add_filter( 'frontend_agent_chat_session_list_input', 'extrachill_roadie_frontend_chat_session_list_input', 10, 4 );
+add_filter( 'frontend_agent_chat_ability_input', 'extrachill_roadie_frontend_chat_ability_input', 10, 5 );
+
+/**
+ * Project a pending action's opaque stored origin into canonical resolver input.
+ *
+ * FAC has already excluded arbitrary browser client context. This callback
+ * accepts only the pending-action workspace and Data Machine's server-stamped
+ * WordPress origin. Data Machine remains authoritative and verifies the routed
+ * store's action repeats the claimed origin before resolving it.
+ *
+ * @param array            $input   Canonical pending-action resolver input.
+ * @param \WP_REST_Request $request REST request.
+ * @param array            $origin  Untrusted opaque origin returned by the client.
+ * @param array            $config  Frontend chat configuration.
+ * @return array Modified resolver input.
+ */
+function extrachill_roadie_frontend_chat_pending_action_resolve_input( $input, $request, array $origin, array $config ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $request must never be used as an origin source.
+	if ( ! is_array( $input ) || ! extrachill_roadie_frontend_chat_targets_roadie( '', $config ) ) {
+		return is_array( $input ) ? $input : array();
+	}
+
+	$workspace = is_array( $origin['workspace'] ?? null ) ? $origin['workspace'] : array();
+	$metadata  = is_array( $origin['metadata'] ?? null ) ? $origin['metadata'] : array();
+	$dm_meta   = is_array( $metadata['datamachine'] ?? null ) ? $metadata['datamachine'] : array();
+	$context   = is_array( $dm_meta['context'] ?? null ) ? $dm_meta['context'] : array();
+	$wordpress = is_array( $context['wordpress'] ?? null ) ? $context['wordpress'] : array();
+	$blog_id   = absint( $wordpress['blog_id'] ?? 0 );
+
+	$workspace_type = sanitize_key( (string) ( $workspace['workspace_type'] ?? '' ) );
+	$workspace_id   = trim( (string) ( $workspace['workspace_id'] ?? '' ) );
+	if ( $blog_id <= 0 || ! extrachill_roadie_pending_action_origin_is_valid( $workspace_type, $workspace_id, $blog_id ) ) {
+		// Data Machine fails closed when the claimed origin does not resolve to a site.
+		$input['context'] = array( 'wordpress' => array( 'blog_id' => PHP_INT_MAX ) );
+		return $input;
+	}
+
+	$input['workspace'] = array(
+		'workspace_type' => $workspace_type,
+		'workspace_id'   => $workspace_id,
+	);
+	$input['context']   = array( 'wordpress' => array( 'blog_id' => $blog_id ) );
+
+	return $input;
+}
+add_filter( 'frontend_agent_chat_pending_action_resolve_input', 'extrachill_roadie_frontend_chat_pending_action_resolve_input', 10, 4 );
+
+/**
+ * Check that an origin workspace describes the claimed WordPress site/network.
+ */
+function extrachill_roadie_pending_action_origin_is_valid( string $workspace_type, string $workspace_id, int $blog_id ): bool {
+	if ( function_exists( 'get_site' ) && ! get_site( $blog_id ) ) {
+		return false;
+	}
+
+	if ( 'network' === $workspace_type ) {
+		return extrachill_roadie_conversation_workspace()['workspace_id'] === $workspace_id;
+	}
+
+	if ( 'site' !== $workspace_type || ! function_exists( 'get_home_url' ) ) {
+		return false;
+	}
+
+	$site_url = untrailingslashit( (string) get_home_url( $blog_id, '/' ) );
+	return '' !== $site_url && $site_url === untrailingslashit( $workspace_id );
+}
+
+/**
+ * Determine whether a Frontend Agent Chat request targets Roadie.
+ */
+function extrachill_roadie_frontend_chat_targets_roadie( string $agent_slug, array $config ): bool {
+	$agent_slug = sanitize_title( $agent_slug );
+	if ( '' === $agent_slug ) {
+		$agent_slug = sanitize_title( (string) ( $config['agent_slug'] ?? $config['default_agent_slug'] ?? '' ) );
+	}
+
+	return '' === $agent_slug || EXTRACHILL_ROADIE_AGENT_SLUG === $agent_slug;
+}
 
 /**
  * Resolve Roadie's network-consistent conversation workspace.
