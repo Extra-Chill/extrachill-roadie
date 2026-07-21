@@ -1,0 +1,16 @@
+{
+  "url": "/roadie-e2e/",
+  "profile": "mobile-chrome",
+  "captures": ["steps", "console", "errors", "html", "network", "screenshot", "dom-snapshot"],
+  "steps": [
+    {"kind": "expect", "selector": "#roadie-e2e-main", "state": "visible"},
+    {"kind": "expect", "selector": "#roadie-e2e-anonymous", "state": "visible"},
+    {"kind": "navigate", "url": "/artist/roadie-e2e/", "waitFor": "load"},
+    {"kind": "expect", "selector": "#roadie-e2e-artist", "state": "visible"},
+    {"kind": "navigate", "url": "/events/roadie-e2e/", "waitFor": "load"},
+    {"kind": "expect", "selector": "#roadie-e2e-events", "state": "visible"},
+    {"kind": "navigate", "url": "/community/roadie-e2e/", "waitFor": "load"},
+    {"kind": "expect", "selector": "#roadie-e2e-community", "state": "visible"}
+  ],
+  "assertions": [{"type": "noPageErrors"}]
+}

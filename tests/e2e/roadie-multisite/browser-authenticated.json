@@ -1,0 +1,19 @@
+{
+  "url": "/community/roadie-e2e/",
+  "auth": "wordpress-admin",
+  "authUserId": 1,
+  "profile": "desktop-chrome",
+  "captures": ["steps", "console", "errors", "html", "network", "screenshot", "dom-snapshot"],
+  "steps": [
+    {"kind": "expect", "selector": "#roadie-e2e-community", "state": "visible"},
+    {"kind": "expect", "selector": "#roadie-e2e-authenticated", "state": "visible"},
+    {"kind": "navigate", "url": "/events/roadie-e2e/", "waitFor": "load"},
+    {"kind": "expect", "selector": "#roadie-e2e-events", "state": "visible"},
+    {"kind": "expect", "selector": "#roadie-e2e-authenticated", "state": "visible"},
+    {"kind": "navigate", "url": "/artist/roadie-e2e/", "waitFor": "load"},
+    {"kind": "expect", "selector": "#roadie-e2e-artist", "state": "visible"},
+    {"kind": "navigate", "url": "/roadie-e2e/", "waitFor": "load"},
+    {"kind": "expect", "selector": "#roadie-e2e-main", "state": "visible"}
+  ],
+  "assertions": [{"type": "noPageErrors"}]
+}

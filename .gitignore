@@ -1,5 +1,6 @@
 .homeboy-build/
 build/*.zip
+artifacts/
 
 # NEVER commit a backup-profile export — it carries LIVE credentials.
 # Only the share profile (secrets stripped) belongs in this repo.
