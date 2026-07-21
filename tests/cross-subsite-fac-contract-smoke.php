@@ -94,36 +94,40 @@ class RoadieFACContractAbility {
 			$session_id = (string) ( $input['session_id'] ?? '' );
 			if ( '' === $session_id ) {
 				$session_id = 'roadie-session';
+				$owner      = is_array( $input['session_owner'] ?? null ) ? $input['session_owner'] : array();
 				$GLOBALS['roadie_fac_sessions'][ $session_id ] = array(
 					'session_id'     => $session_id,
 					'workspace_type' => $workspace['workspace_type'] ?? '',
 					'workspace_id'   => $workspace['workspace_id'] ?? '',
+					'owner_type'     => $owner['type'] ?? '',
+					'owner_key'      => $owner['key'] ?? '',
 					'title'          => '',
 					'messages'       => array(),
 					'metadata'       => array(),
 				);
 			}
-			if ( ! self::owns( $session_id, $workspace ) ) {
-				return new WP_Error( 'workspace_mismatch' );
+			if ( ! self::owns( $session_id, $workspace, $input ) ) {
+				return new WP_Error( 'workspace_or_owner_mismatch' );
 			}
 			$GLOBALS['roadie_fac_sessions'][ $session_id ]['messages'][] = array( 'role' => 'user', 'content' => (string) ( $input['message'] ?? '' ) );
 			return array( 'session_id' => $session_id, 'messages' => $GLOBALS['roadie_fac_sessions'][ $session_id ]['messages'] );
 		}
 
 		if ( 'agents/list-conversation-sessions' === $this->name ) {
+			$owner = is_array( $input['session_owner'] ?? null ) ? $input['session_owner'] : array();
 			return array(
 				'sessions' => array_values(
 					array_filter(
 						$GLOBALS['roadie_fac_sessions'],
-						static fn( array $session ): bool => self::matches( $session, $workspace )
+						static fn( array $session ): bool => self::matches( $session, $workspace, $owner )
 					)
 				),
 			);
 		}
 
 		$session_id = (string) ( $input['session_id'] ?? '' );
-		if ( ! self::owns( $session_id, $workspace ) ) {
-			return new WP_Error( 'workspace_mismatch' );
+		if ( ! self::owns( $session_id, $workspace, $input ) ) {
+			return new WP_Error( 'workspace_or_owner_mismatch' );
 		}
 
 		return match ( $this->name ) {
@@ -139,14 +143,17 @@ class RoadieFACContractAbility {
 		};
 	}
 
-	private static function matches( array $session, array $workspace ): bool {
+	private static function matches( array $session, array $workspace, array $owner ): bool {
 		return ( $session['workspace_type'] ?? '' ) === ( $workspace['workspace_type'] ?? '' )
-			&& ( $session['workspace_id'] ?? '' ) === ( $workspace['workspace_id'] ?? '' );
+			&& ( $session['workspace_id'] ?? '' ) === ( $workspace['workspace_id'] ?? '' )
+			&& ( $session['owner_type'] ?? '' ) === ( $owner['type'] ?? '' )
+			&& ( $session['owner_key'] ?? '' ) === ( $owner['key'] ?? '' );
 	}
 
-	private static function owns( string $session_id, array $workspace ): bool {
+	private static function owns( string $session_id, array $workspace, array $input ): bool {
 		$session = $GLOBALS['roadie_fac_sessions'][ $session_id ] ?? null;
-		return is_array( $session ) && self::matches( $session, $workspace );
+		$owner   = is_array( $input['session_owner'] ?? null ) ? $input['session_owner'] : array();
+		return is_array( $session ) && self::matches( $session, $workspace, $owner );
 	}
 
 	private static function mark_read( string $session_id ): array {
@@ -326,6 +333,14 @@ $assert( 'Across the network' === ( $renamed['data']['title'] ?? '' ), 'Subsite 
 
 $continued = frontend_agent_chat_rest_send_message( new WP_REST_Request( array( 'message' => 'continue', 'agent' => 'roadie', 'session_id' => 'roadie-session' ) ) );
 $assert( 2 === count( $continued['data']['conversation'] ?? array() ), 'Cross-subsite continuation did not append to the same session.' );
+
+$owner_cookie = $_COOKIE[ FRONTEND_AGENT_CHAT_BROWSER_COOKIE ];
+$_COOKIE[ FRONTEND_AGENT_CHAT_BROWSER_COOKIE ] = str_repeat( 'd', 64 );
+$foreign_queue = frontend_agent_chat_rest_queue_message( new WP_REST_Request( array( 'message' => 'foreign', 'agent' => 'roadie', 'session_id' => 'roadie-session', 'run_id' => 'run-1' ) ) );
+$assert( $foreign_queue instanceof WP_Error && 'workspace_or_owner_mismatch' === $foreign_queue->get_error_code(), 'A different browser principal queued into another owner\'s session.' );
+$foreign_run = frontend_agent_chat_rest_get_run( new WP_REST_Request( array( 'agent' => 'roadie', 'session_id' => 'roadie-session', 'run_id' => 'run-1' ) ) );
+$assert( $foreign_run instanceof WP_Error && 'workspace_or_owner_mismatch' === $foreign_run->get_error_code(), 'A different browser principal read another owner\'s run.' );
+$_COOKIE[ FRONTEND_AGENT_CHAT_BROWSER_COOKIE ] = $owner_cookie;
 
 $queued = frontend_agent_chat_rest_queue_message( new WP_REST_Request( array( 'message' => 'queued', 'agent' => 'roadie', 'session_id' => 'roadie-session', 'run_id' => 'run-1' ) ) );
 $assert( 'queued-1' === ( $queued['data']['queued_message_id'] ?? '' ), 'Queue did not resolve the network session.' );
