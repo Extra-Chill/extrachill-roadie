@@ -81,6 +81,150 @@ add_filter( 'frontend_agent_chat_chat_input', 'extrachill_roadie_frontend_chat_i
 add_filter( 'frontend_agent_chat_queue_input', 'extrachill_roadie_frontend_chat_input', 10, 4 );
 
 /**
+ * Apply Roadie's network workspace to the complete conversation lifecycle.
+ *
+ * @param array            $input      Canonical ability input.
+ * @param string           $ability    Canonical ability name.
+ * @param \WP_REST_Request $request    REST request.
+ * @param string           $agent_slug Selected agent slug.
+ * @param array            $config     Frontend chat configuration.
+ * @return array Modified ability input.
+ */
+function extrachill_roadie_frontend_chat_ability_input( $input, string $ability, $request, string $agent_slug, array $config ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $request is required by the generic FAC filter signature.
+	if ( ! is_array( $input ) ) {
+		return array();
+	}
+
+	if ( ! extrachill_roadie_frontend_chat_targets_roadie( $agent_slug, $config ) ) {
+		return $input;
+	}
+
+	$workspace_abilities = array(
+		'agents/chat',
+		'agents/queue-chat-message',
+		'agents/list-conversation-sessions',
+		'agents/get-conversation-session',
+		'agents/mark-conversation-session-read',
+		'agents/delete-conversation-session',
+		'agents/update-conversation-session-title',
+		'agents/get-chat-run',
+		'agents/list-chat-run-events',
+		'agents/cancel-chat-run',
+	);
+	if ( ! in_array( $ability, $workspace_abilities, true ) ) {
+		return $input;
+	}
+
+	$input['workspace'] = extrachill_roadie_conversation_workspace();
+	if ( 'agents/list-conversation-sessions' === $ability ) {
+		$input['context'] = implode( ',', extrachill_roadie_compose_modes( array() ) );
+	}
+
+	return $input;
+}
+add_filter( 'frontend_agent_chat_ability_input', 'extrachill_roadie_frontend_chat_ability_input', 10, 5 );
+
+/**
+ * Project a pending action's opaque stored origin into canonical resolver input.
+ *
+ * FAC has already excluded arbitrary browser client context. This callback
+ * accepts only the pending-action workspace and Data Machine's server-stamped
+ * WordPress origin. Data Machine remains authoritative and verifies the routed
+ * store's action repeats the claimed origin before resolving it.
+ *
+ * @param array            $input   Canonical pending-action resolver input.
+ * @param \WP_REST_Request $request REST request.
+ * @param array            $origin  Untrusted opaque origin returned by the client.
+ * @param array            $config  Frontend chat configuration.
+ * @return array Modified resolver input.
+ */
+function extrachill_roadie_frontend_chat_pending_action_resolve_input( $input, $request, array $origin, array $config ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $request must never be used as an origin source.
+	if ( ! is_array( $input ) || ! extrachill_roadie_frontend_chat_targets_roadie( '', $config ) ) {
+		return is_array( $input ) ? $input : array();
+	}
+
+	$workspace = is_array( $origin['workspace'] ?? null ) ? $origin['workspace'] : array();
+	$metadata  = is_array( $origin['metadata'] ?? null ) ? $origin['metadata'] : array();
+	$dm_meta   = is_array( $metadata['datamachine'] ?? null ) ? $metadata['datamachine'] : array();
+	$context   = is_array( $dm_meta['context'] ?? null ) ? $dm_meta['context'] : array();
+	$wordpress = is_array( $context['wordpress'] ?? null ) ? $context['wordpress'] : array();
+	$blog_id   = absint( $wordpress['blog_id'] ?? 0 );
+
+	$workspace_type = sanitize_key( (string) ( $workspace['workspace_type'] ?? '' ) );
+	$workspace_id   = trim( (string) ( $workspace['workspace_id'] ?? '' ) );
+	if ( $blog_id <= 0 || ! extrachill_roadie_pending_action_origin_is_valid( $workspace_type, $workspace_id, $blog_id ) ) {
+		// Data Machine fails closed when the claimed origin does not resolve to a site.
+		$input['context'] = array( 'wordpress' => array( 'blog_id' => PHP_INT_MAX ) );
+		return $input;
+	}
+
+	$input['workspace'] = array(
+		'workspace_type' => $workspace_type,
+		'workspace_id'   => $workspace_id,
+	);
+	$input['context']   = array( 'wordpress' => array( 'blog_id' => $blog_id ) );
+
+	return $input;
+}
+add_filter( 'frontend_agent_chat_pending_action_resolve_input', 'extrachill_roadie_frontend_chat_pending_action_resolve_input', 10, 4 );
+
+/**
+ * Check that an origin workspace describes a blog on Roadie's current network.
+ */
+function extrachill_roadie_pending_action_origin_is_valid( string $workspace_type, string $workspace_id, int $blog_id ): bool {
+	if ( ! function_exists( 'get_site' ) || ! function_exists( 'get_current_network_id' ) ) {
+		return false;
+	}
+
+	$site       = get_site( $blog_id );
+	$network_id = (int) get_current_network_id();
+	if ( ! is_object( $site ) || $network_id <= 0 || (int) ( $site->site_id ?? 0 ) !== $network_id ) {
+		return false;
+	}
+
+	if ( 'network' === $workspace_type ) {
+		return extrachill_roadie_conversation_workspace()['workspace_id'] === $workspace_id;
+	}
+
+	if ( 'site' !== $workspace_type || ! function_exists( 'get_home_url' ) ) {
+		return false;
+	}
+
+	$site_url = untrailingslashit( (string) get_home_url( $blog_id, '/' ) );
+	return '' !== $site_url && $site_url === untrailingslashit( $workspace_id );
+}
+
+/**
+ * Determine whether a Frontend Agent Chat request targets Roadie.
+ */
+function extrachill_roadie_frontend_chat_targets_roadie( string $agent_slug, array $config ): bool {
+	$agent_slug = sanitize_title( $agent_slug );
+	if ( '' === $agent_slug ) {
+		$agent_slug = sanitize_title( (string) ( $config['agent_slug'] ?? $config['default_agent_slug'] ?? '' ) );
+	}
+
+	return '' === $agent_slug || EXTRACHILL_ROADIE_AGENT_SLUG === $agent_slug;
+}
+
+/**
+ * Resolve Roadie's network-consistent conversation workspace.
+ *
+ * Data Machine already uses the canonical Agents API workspace value shape.
+ * A network workspace lets the same principal discover one Roadie history from
+ * every subsite without introducing a Roadie-owned transcript store.
+ *
+ * @return array{workspace_type:string,workspace_id:string}
+ */
+function extrachill_roadie_conversation_workspace(): array {
+	$network_id = function_exists( 'get_current_network_id' ) ? (int) get_current_network_id() : 1;
+
+	return array(
+		'workspace_type' => 'network',
+		'workspace_id'   => (string) max( 1, $network_id ),
+	);
+}
+
+/**
  * Compose the `roadie` mode on top of any modes already present.
  *
  * Preserves explicitly-set modes (so a future caller can request more) while
