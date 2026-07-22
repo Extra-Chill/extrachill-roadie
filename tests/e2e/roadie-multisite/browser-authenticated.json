@@ -1,7 +1,7 @@
 {
   "url": "/",
   "auth": "wordpress-admin",
-  "authUserId": 1,
+  "authUserId": 2,
   "profile": "desktop-chrome",
   "captures": ["steps", "console", "errors", "html", "network", "screenshot", "dom-snapshot"],
   "steps": [

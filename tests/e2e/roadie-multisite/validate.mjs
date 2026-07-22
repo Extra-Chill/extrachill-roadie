@@ -108,6 +108,9 @@ try {
     assert.ok(scenario.assertions.some((item) => item.type === 'noPageErrors'));
     assert.ok(scenario.steps.some((step) => step.kind === 'navigate' || step.kind === 'click'));
     assert.doesNotMatch(scenario.url, /roadie-e2e/);
+    if (scenario.auth === 'wordpress-admin') {
+      assert.equal(scenario.authUserId, 2);
+    }
   }
 
   for (const file of ['activate.php', 'seed.php', 'assert.php', 'README.md']) {
