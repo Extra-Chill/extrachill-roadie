@@ -82,13 +82,18 @@ production-domain parity.
 The full acceptance run has not reached every Roadie assertion and this package
 does not establish issue #87 as complete.
 
-- Automattic/agents-api#459: standalone Agents API activation uses optional
-  `GLOB_BRACE` in PHP-WASM. Its owning fix is outside Roadie.
+- Automattic/agents-api#459: the owning fix at `66d8ae1` clears the PHP-WASM
+  `GLOB_BRACE` activation fatal when supplied as an immutable component input;
+  the issue remains open upstream.
 - Automattic/wp-codebox#1949: `wordpress.phpunit` can materialize an inconsistent
-  Composer static autoloader before test discovery.
+  Composer static autoloader before test discovery. Retesting directly against
+  fix branch `50d2d220` still reproduces the missing generated class.
 - Extra-Chill/homeboy-extensions#2345: the generic multisite rig cannot mount the
   Extra Chill theme, which is the real owner of the `artist` and `location`
   taxonomies. The seed fails precisely instead of fixture-registering them.
+- Extra-Chill/homeboy-extensions#2347: the generic rig cannot select PHP 8.4.
+  The corrected run now reaches Extra Chill Network activation, where WP Codebox
+  PHP 8.3.31 correctly fails the plugin's PHP 8.4 requirement.
 - Extra-Chill/homeboy#9579: local files and WP Codebox bundles cannot currently
   be registered against the enclosing Homeboy rig run on both success and
   failure. Roadie retains local paths but does not claim they are Homeboy
@@ -101,3 +106,15 @@ review corrections and is not acceptance evidence:
 homeboy runs artifacts 23ad7025-aebb-4652-b02d-44f7546ed978
 homeboy runs evidence 23ad7025-aebb-4652-b02d-44f7546ed978
 ```
+
+Current correction evidence:
+
+```bash
+homeboy runs evidence 05218356-ab5d-45ce-b40d-761adf369267
+homeboy runs evidence 56b126f6-0322-4052-aa8a-73f64b8b2d3c
+```
+
+Run `05218356-ab5d-45ce-b40d-761adf369267` proves the fixed Agents API and full
+declared plugin dependencies reach the generic rig's PHP-version boundary. Run
+`56b126f6-0322-4052-aa8a-73f64b8b2d3c` records clean audit/lint plus the
+remaining WP Codebox Composer bootstrap failure against its fix branch.
