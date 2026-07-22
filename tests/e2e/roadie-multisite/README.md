@@ -32,9 +32,10 @@ keeps the standalone runtime explicit. The same immutable checkout is also
 declared through WP Codebox's Composer dependency overlay contract so Data
 Machine cannot load an older bundled copy from its committed vendor directory.
 
-The API and Network mounts are also intentional product composition: Extra Chill
-Users declares both as required plugins, so the journey activates those real
-dependencies rather than bypassing WordPress dependency enforcement.
+The API, Network, and Analytics mounts are also intentional product composition:
+Extra Chill Users declares the first two as required plugins, while Roadie's
+team-experience events use the network-active Analytics event contract. The
+journey activates those real dependencies rather than replacing their surfaces.
 
 ## Validate Without Playground
 

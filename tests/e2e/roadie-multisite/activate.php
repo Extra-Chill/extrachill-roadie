@@ -13,6 +13,7 @@ $plugins = array(
 	'extrachill-artist-platform/extrachill-artist-platform.php',
 	'data-machine-events/data-machine-events.php',
 	'extrachill-events/extrachill-events.php',
+	'extrachill-analytics/extrachill-analytics.php',
 	'extrachill-roadie/extrachill-roadie.php',
 );
 

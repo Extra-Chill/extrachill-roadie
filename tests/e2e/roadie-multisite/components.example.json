@@ -35,6 +35,10 @@
     "path": "/absolute/path/to/extrachill-events",
     "version": "0000000000000000000000000000000000000000"
   },
+  "extrachill-analytics": {
+    "path": "/absolute/path/to/extrachill-analytics",
+    "version": "0000000000000000000000000000000000000000"
+  },
   "extrachill": {
     "path": "/absolute/path/to/extrachill-theme",
     "version": "0000000000000000000000000000000000000000"
