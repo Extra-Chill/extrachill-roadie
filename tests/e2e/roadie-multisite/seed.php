@@ -104,7 +104,7 @@ if ( ! ec_add_artist_membership( (int) $owner_id, (int) $artist_id ) ) {
 
 switch_to_blog( $sites['main'] );
 if ( ! taxonomy_exists( 'artist' ) ) {
-	throw new RuntimeException( 'The product-owned artist taxonomy is unavailable. Mount and activate the Extra Chill theme through homeboy-extensions#2345; the Roadie fixture must not register it.' );
+	throw new RuntimeException( 'The product-owned artist taxonomy is unavailable. The verified Extra Chill theme must be mounted and active; the Roadie fixture must not register it.' );
 }
 $canonical = wp_insert_term( 'Roadie Canonical Artist', 'artist', array( 'slug' => 'roadie-canonical-artist' ) );
 if ( is_wp_error( $canonical ) ) {
@@ -115,7 +115,7 @@ restore_current_blog();
 
 switch_to_blog( $sites['events'] );
 if ( ! taxonomy_exists( 'artist' ) || ! taxonomy_exists( 'location' ) ) {
-	throw new RuntimeException( 'The product-owned artist/location taxonomies are unavailable on Events. Mount and activate the Extra Chill theme through homeboy-extensions#2345.' );
+	throw new RuntimeException( 'The product-owned artist/location taxonomies are unavailable on Events. The verified Extra Chill theme must be mounted and active.' );
 }
 if ( ! is_object_in_taxonomy( DATA_MACHINE_EVENTS_POST_TYPE, 'artist' ) || ! is_object_in_taxonomy( DATA_MACHINE_EVENTS_POST_TYPE, 'location' ) ) {
 	throw new RuntimeException( 'Extra Chill Events did not attach the product-owned artist/location taxonomies to the event post type.' );

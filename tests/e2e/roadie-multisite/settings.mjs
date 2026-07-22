@@ -24,6 +24,12 @@ export const componentFiles = {
   'extrachill-roadie': 'extrachill-roadie.php',
 };
 
+export const themeFiles = {
+  extrachill: 'style.css',
+};
+
+const checkoutFiles = { ...componentFiles, ...themeFiles };
+
 export async function readComponents(file = process.env.ROADIE_E2E_COMPONENTS_FILE, { enforceRoadieRoot = true } = {}) {
   if (!file) {
     throw new Error('ROADIE_E2E_COMPONENTS_FILE must name a JSON component manifest.');
@@ -37,7 +43,7 @@ export async function readComponents(file = process.env.ROADIE_E2E_COMPONENTS_FI
       throw new Error(`extrachill-roadie.path must be the checkout running this harness: ${actualRoadieRoot}.`);
     }
   }
-  for (const [slug, pluginFile] of Object.entries(componentFiles)) {
+  for (const [slug, checkoutFile] of Object.entries(checkoutFiles)) {
     const component = manifest[slug];
     if (!component || typeof component.path !== 'string' || !path.isAbsolute(component.path)) {
       throw new Error(`${slug}.path must be an absolute component checkout path.`);
@@ -45,7 +51,7 @@ export async function readComponents(file = process.env.ROADIE_E2E_COMPONENTS_FI
     if (typeof component.version !== 'string' || !immutableRevision.test(component.version.trim())) {
       throw new Error(`${slug}.version must be a full immutable Git revision.`);
     }
-    await access(path.join(component.path, pluginFile));
+    await access(path.join(component.path, checkoutFile));
 
     let head;
     let dirty;
@@ -73,15 +79,21 @@ export async function readComponents(file = process.env.ROADIE_E2E_COMPONENTS_FI
   return manifest;
 }
 
-export function buildSettings(components, wordpressVersion) {
+export function buildSettings(components, wordpressVersion, phpVersion) {
   if (typeof wordpressVersion !== 'string' || wordpressVersion.trim() === '') {
     throw new Error('ROADIE_E2E_WORDPRESS_VERSION must explicitly select WordPress.');
   }
+  if (typeof phpVersion !== 'string' || phpVersion.trim() === '') {
+    throw new Error('ROADIE_E2E_PHP_VERSION must explicitly select PHP.');
+  }
 
   const fixture = path.join(root, 'fixture');
-  const provenance = buildProvenance(components, wordpressVersion);
+  const selectedWordpressVersion = wordpressVersion.trim();
+  const selectedPhpVersion = phpVersion.trim();
+  const provenance = buildProvenance(components, selectedWordpressVersion, selectedPhpVersion);
   return {
-    wordpress_runtime_version: wordpressVersion,
+    wordpress_runtime_version: selectedWordpressVersion,
+    wordpress_runtime_php_version: selectedPhpVersion,
     wp_codebox_extra_plugins: [
       {
         source: fixture,
@@ -95,16 +107,18 @@ export function buildSettings(components, wordpressVersion) {
         pluginFile: `${slug}/${pluginFile}`,
         activate: false,
         metadata: {
-          provenance: {
-            schema: 'extrachill-roadie/component-checkout/v1',
-            component: slug,
-            revision: components[slug].revision,
-            content_sha256: components[slug].contentSha256,
-            dirty: components[slug].dirty === true,
-          },
+          provenance: componentProvenance(components, slug),
         },
       })),
     ],
+    wp_codebox_extra_themes: Object.keys(themeFiles).map((slug) => ({
+      source: components[slug].path,
+      slug,
+      activate: true,
+      metadata: {
+        provenance: componentProvenance(components, slug, 'theme'),
+      },
+    })),
     wordpress_runtime_prepare_steps: [
       phpStep('activate.php', { roadie_e2e_provenance: provenance }),
       phpStep('seed.php'),
@@ -117,16 +131,29 @@ export function buildSettings(components, wordpressVersion) {
   };
 }
 
-export function buildProvenance(components, wordpressVersion) {
+export function buildProvenance(components, wordpressVersion, phpVersion) {
   return {
     schema: 'extrachill-roadie/multisite-component-provenance/v1',
-    wordpress: wordpressVersion,
-    components: Object.keys(componentFiles).map((slug) => ({
+    wordpress: wordpressVersion.trim(),
+    php: phpVersion.trim(),
+    components: Object.keys(checkoutFiles).map((slug) => ({
       slug,
+      ...(Object.hasOwn(themeFiles, slug) ? { kind: 'theme' } : {}),
       revision: components[slug].revision,
       content_sha256: components[slug].contentSha256,
       dirty: components[slug].dirty === true,
     })),
+  };
+}
+
+function componentProvenance(components, slug, kind) {
+  return {
+    schema: 'extrachill-roadie/component-checkout/v1',
+    component: slug,
+    ...(kind ? { kind } : {}),
+    revision: components[slug].revision,
+    content_sha256: components[slug].contentSha256,
+    dirty: components[slug].dirty === true,
   };
 }
 
