@@ -8,9 +8,14 @@ component mounts, seed data, product assertions, and browser scenarios.
 ## Inputs
 
 Copy `components.example.json` outside the repository and replace every path and
-version with the checkout that should be tested. Paths and revisions are runtime
-inputs so committed configuration does not depend on one host's workspace
-layout. `extrachill-roadie` should point at the checkout under test.
+version with the checkout that should be tested. Each version must be the full
+immutable Git commit at that checkout's `HEAD`; the runner rejects branch names,
+abbreviated hashes, mismatches, and dirty checkouts. Verified clean revisions are
+bound to a digest of every mounted byte outside `.git`, then persisted in the
+effective WP Codebox recipe and a local provenance sidecar. The Roadie manifest
+entry must be the checkout running this harness so fixture code cannot drift from
+the attributed Roadie revision.
+`extrachill-roadie` should point at the checkout under test.
 
 The standalone `agents-api` mount is intentional. Queue ownership depends on the
 canonical fix from Automattic/agents-api#451; mounting it before Data Machine
@@ -22,18 +27,25 @@ prevents an older bundled copy from silently weakening the journey.
 node tests/e2e/roadie-multisite/validate.mjs
 ```
 
+This creates disposable Git component fixtures and invokes
+`homeboy rig check wordpress-multisite-e2e`. The installed generic rig generates
+the exact recipe, runs WP Codebox recipe validation and dry-run validation, and
+validates the embedded browser interaction schemas without starting Playground.
+
 ## Run Through The Installed Rig
 
-One command runs the journey and retains the generic rig's result envelope and
-WP Codebox evidence bundle:
+One command runs the journey and retains Roadie's verified provenance and outer
+Homeboy stdout/stderr. When the generic rig completes, it also retains its result
+envelope and WP Codebox evidence bundle:
 
 ```bash
 ROADIE_E2E_COMPONENTS_FILE=/absolute/path/to/components.json ROADIE_E2E_WORDPRESS_VERSION=nightly ROADIE_E2E_ARTIFACT_ROOT="$PWD/artifacts/roadie-multisite" node tests/e2e/roadie-multisite/run.mjs
 ```
 
-The command prints `artifactRoot` and `resultFile`. Browser scenarios retain
-steps, console output, page errors, HTML, network activity, screenshots, and DOM
-snapshots for anonymous mobile and authenticated desktop journeys.
+The command prints all retained paths. Browser scenarios use real network
+frontends and the mounted Frontend Agent Chat widget; they retain steps, console
+output, page errors, HTML, network activity, screenshots, and DOM snapshots for
+anonymous mobile and authenticated desktop journeys.
 
 ## Coverage
 
@@ -41,11 +53,13 @@ snapshots for anonymous mobile and authenticated desktop journeys.
 - shared network user identity and reciprocal artist membership;
 - unrelated-user denial for artist objects, revisions, autosaves, sessions, and queues;
 - real WordPress `artist_profile` REST CRUD, revisions, and autosaves;
-- one network-workspace Roadie session created, listed, read, titled, continued,
-  and deleted across different subsites;
-- run and queue ownership using canonical Agents API workspace/owner binding;
-- pending-action resolution at its stored Events origin, with forged site and
-  foreign-network workspace claims denied;
+- one network-workspace Roadie session created and continued by repeated calls
+  to FAC's production `/chat` route, then listed, read, titled, and deleted
+  through FAC lifecycle routes across different subsites;
+- production-created run ownership plus FAC queue ownership using canonical
+  Agents API workspace/owner binding;
+- pending-action resolution through FAC at its stored Events origin, including
+  forged-site, foreign-network, foreign-owner, and real artist-capability denial;
 - explicit canonical artist-term mapping to Events with intentionally different
   slugs, proving there is no request-time slug fallback;
 - canonical venue and calendar adapters preserving identity, location, timing,
@@ -59,15 +73,25 @@ cookie continuity only. It does not model Extra Chill's mapped domains, DNS,
 TLS boundaries, or cross-domain cookie behavior and must not be presented as
 production-domain parity.
 
-## Current Upstream Blocker
+## Current Owning-Layer Blockers
 
-The real integration currently stops while activating standalone Agents API at
-`agents-api.php:82`: PHP-WASM does not define optional `GLOB_BRACE`. This is
-tracked upstream as Automattic/agents-api#459. Roadie deliberately carries no
-bootstrap shim for that substrate defect.
+The full acceptance run has not reached every Roadie assertion and this package
+does not establish issue #87 as complete.
 
-Blocked Homeboy run `23ad7025-aebb-4652-b02d-44f7546ed978` retains the fatal and
-recipe evidence. Inspect it with:
+- Automattic/agents-api#459: standalone Agents API activation uses optional
+  `GLOB_BRACE` in PHP-WASM. Its owning fix is outside Roadie.
+- Automattic/wp-codebox#1949: `wordpress.phpunit` can materialize an inconsistent
+  Composer static autoloader before test discovery.
+- Extra-Chill/homeboy-extensions#2345: the generic multisite rig cannot mount the
+  Extra Chill theme, which is the real owner of the `artist` and `location`
+  taxonomies. The seed fails precisely instead of fixture-registering them.
+- Extra-Chill/homeboy#9579: local files and WP Codebox bundles cannot currently
+  be registered against the enclosing Homeboy rig run on both success and
+  failure. Roadie retains local paths but does not claim they are Homeboy
+  artifact rows.
+
+Earlier blocked evidence remains inspectable, but it predates the independent
+review corrections and is not acceptance evidence:
 
 ```bash
 homeboy runs artifacts 23ad7025-aebb-4652-b02d-44f7546ed978

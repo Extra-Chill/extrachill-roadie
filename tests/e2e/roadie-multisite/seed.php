@@ -34,13 +34,53 @@ if ( is_wp_error( $owner_id ) || is_wp_error( $stranger_id ) ) {
 }
 
 foreach ( $sites as $site_id ) {
-	add_user_to_blog( $site_id, (int) $owner_id, 'author' );
-	add_user_to_blog( $site_id, (int) $stranger_id, 'subscriber' );
+	add_user_to_blog( $site_id, (int) $owner_id, 'extra_chill_team' );
+	add_user_to_blog( $site_id, (int) $stranger_id, 'extra_chill_team' );
 	switch_to_blog( $site_id );
+	( new WP_User( (int) $owner_id ) )->set_role( 'extra_chill_team' );
+	( new WP_User( (int) $stranger_id ) )->set_role( 'extra_chill_team' );
 	update_option( 'permalink_structure', '/%postname%/' );
+	$site_key = array_search( $site_id, $sites, true );
+	update_option( 'blogname', 'Roadie ' . ucfirst( (string) $site_key ) );
 	flush_rewrite_rules();
 	restore_current_blog();
 }
+
+wp_set_current_user( 1 );
+$agents = new \DataMachine\Core\Database\Agents\Agents();
+$roadie = $agents->get_by_slug( 'roadie' );
+if ( ! $roadie ) {
+	$created_agent = \DataMachine\Abilities\AgentAbilities::createAgent(
+		array(
+			'agent_slug' => 'roadie',
+			'agent_name' => 'Roadie',
+			'owner_id'   => (int) $owner_id,
+			'site_scope' => null,
+			'config'     => array(
+				'default_provider' => 'roadie-e2e',
+				'default_model'    => 'roadie-e2e-model',
+			),
+		)
+	);
+	if ( empty( $created_agent['success'] ) ) {
+		throw new RuntimeException( 'Could not create the Roadie fixture agent: ' . ( $created_agent['error'] ?? 'unknown error' ) );
+	}
+} else {
+	$config                     = is_array( $roadie['agent_config'] ?? null ) ? $roadie['agent_config'] : array();
+	$config['default_provider'] = 'roadie-e2e';
+	$config['default_model']    = 'roadie-e2e-model';
+	$agents->update_agent( (int) $roadie['agent_id'], array( 'agent_config' => $config ) );
+}
+
+update_site_option(
+	'frontend_agent_chat_config',
+	array(
+		'enabled'    => true,
+		'agent_slug' => 'roadie',
+		'layout'     => 'floating',
+	)
+);
+update_site_option( 'roadie_e2e_pending_apply_count', 0 );
 
 switch_to_blog( $sites['artist'] );
 $artist_id = wp_insert_post(
@@ -63,7 +103,9 @@ if ( ! ec_add_artist_membership( (int) $owner_id, (int) $artist_id ) ) {
 }
 
 switch_to_blog( $sites['main'] );
-register_taxonomy( 'artist', 'post', array( 'show_in_rest' => true ) );
+if ( ! taxonomy_exists( 'artist' ) ) {
+	throw new RuntimeException( 'The product-owned artist taxonomy is unavailable. Mount and activate the Extra Chill theme through homeboy-extensions#2345; the Roadie fixture must not register it.' );
+}
 $canonical = wp_insert_term( 'Roadie Canonical Artist', 'artist', array( 'slug' => 'roadie-canonical-artist' ) );
 if ( is_wp_error( $canonical ) ) {
 	throw new RuntimeException( $canonical->get_error_message() );
@@ -72,8 +114,12 @@ update_term_meta( $canonical['term_id'], '_artist_profile_id', (int) $artist_id 
 restore_current_blog();
 
 switch_to_blog( $sites['events'] );
-register_taxonomy( 'artist', DATA_MACHINE_EVENTS_POST_TYPE, array( 'show_in_rest' => true ) );
-register_taxonomy( 'location', DATA_MACHINE_EVENTS_POST_TYPE, array( 'hierarchical' => true, 'show_in_rest' => true ) );
+if ( ! taxonomy_exists( 'artist' ) || ! taxonomy_exists( 'location' ) ) {
+	throw new RuntimeException( 'The product-owned artist/location taxonomies are unavailable on Events. Mount and activate the Extra Chill theme through homeboy-extensions#2345.' );
+}
+if ( ! is_object_in_taxonomy( DATA_MACHINE_EVENTS_POST_TYPE, 'artist' ) || ! is_object_in_taxonomy( DATA_MACHINE_EVENTS_POST_TYPE, 'location' ) ) {
+	throw new RuntimeException( 'Extra Chill Events did not attach the product-owned artist/location taxonomies to the event post type.' );
+}
 $local_artist = wp_insert_term( 'Different Local Slug', 'artist', array( 'slug' => 'deliberately-not-canonical' ) );
 $location     = wp_insert_term( 'Charleston', 'location', array( 'slug' => 'charleston' ) );
 $venue_result = \DataMachineEvents\Core\Venue_Taxonomy::find_or_create_venue(
@@ -106,11 +152,16 @@ $event_id = wp_insert_post(
 if ( is_wp_error( $event_id ) ) {
 	throw new RuntimeException( $event_id->get_error_message() );
 }
-wp_set_object_terms( $event_id, array( (int) $local_artist['term_id'] ), 'artist' );
-wp_set_object_terms( $event_id, array( (int) $location['term_id'] ), 'location' );
-wp_set_object_terms( $event_id, array( (int) $venue_result['term_id'] ), 'venue' );
+$event_artist_terms   = wp_set_object_terms( $event_id, array( (int) $local_artist['term_id'] ), 'artist' );
+$event_location_terms = wp_set_object_terms( $event_id, array( (int) $location['term_id'] ), 'location' );
+$event_venue_terms    = wp_set_object_terms( $event_id, array( (int) $venue_result['term_id'] ), 'venue' );
+if ( is_wp_error( $event_artist_terms ) || is_wp_error( $event_location_terms ) || is_wp_error( $event_venue_terms ) ) {
+	throw new RuntimeException( 'Could not attach product-owned taxonomies to the seeded event.' );
+}
 \DataMachineEvents\Core\EventDatesTable::create_table();
-\DataMachineEvents\Core\EventDatesTable::upsert( $event_id, '2030-07-21 20:30:00', '2030-07-21 23:00:00', 'publish' );
+if ( ! \DataMachineEvents\Core\EventDatesTable::upsert( $event_id, '2030-07-21 20:30:00', '2030-07-21 23:00:00', 'publish' ) ) {
+	throw new RuntimeException( 'Could not persist the seeded event occurrence.' );
+}
 restore_current_blog();
 
 switch_to_blog( $sites['main'] );

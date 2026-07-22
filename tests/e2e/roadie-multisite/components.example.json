@@ -1,34 +1,34 @@
 {
   "agents-api": {
     "path": "/absolute/path/to/agents-api",
-    "version": "main"
+    "version": "0000000000000000000000000000000000000000"
   },
   "data-machine": {
     "path": "/absolute/path/to/data-machine",
-    "version": "main"
+    "version": "0000000000000000000000000000000000000000"
   },
   "frontend-agent-chat": {
     "path": "/absolute/path/to/frontend-agent-chat",
-    "version": "main"
+    "version": "0000000000000000000000000000000000000000"
   },
   "extrachill-users": {
     "path": "/absolute/path/to/extrachill-users",
-    "version": "main"
+    "version": "0000000000000000000000000000000000000000"
   },
   "extrachill-artist-platform": {
     "path": "/absolute/path/to/extrachill-artist-platform",
-    "version": "main"
+    "version": "0000000000000000000000000000000000000000"
   },
   "data-machine-events": {
     "path": "/absolute/path/to/data-machine-events",
-    "version": "main"
+    "version": "0000000000000000000000000000000000000000"
   },
   "extrachill-events": {
     "path": "/absolute/path/to/extrachill-events",
-    "version": "main"
+    "version": "0000000000000000000000000000000000000000"
   },
   "extrachill-roadie": {
     "path": "/absolute/path/to/extrachill-roadie",
-    "version": "test/87-multisite-artist-journey"
+    "version": "0000000000000000000000000000000000000000"
   }
 }

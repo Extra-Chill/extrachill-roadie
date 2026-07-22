@@ -1,16 +1,23 @@
 {
-  "url": "/roadie-e2e/",
+  "url": "/",
   "profile": "mobile-chrome",
   "captures": ["steps", "console", "errors", "html", "network", "screenshot", "dom-snapshot"],
   "steps": [
-    {"kind": "expect", "selector": "#roadie-e2e-main", "state": "visible"},
-    {"kind": "expect", "selector": "#roadie-e2e-anonymous", "state": "visible"},
-    {"kind": "navigate", "url": "/artist/roadie-e2e/", "waitFor": "load"},
-    {"kind": "expect", "selector": "#roadie-e2e-artist", "state": "visible"},
-    {"kind": "navigate", "url": "/events/roadie-e2e/", "waitFor": "load"},
-    {"kind": "expect", "selector": "#roadie-e2e-events", "state": "visible"},
-    {"kind": "navigate", "url": "/community/roadie-e2e/", "waitFor": "load"},
-    {"kind": "expect", "selector": "#roadie-e2e-community", "state": "visible"}
+    {"kind": "expect", "selector": "body", "state": "visible"},
+    {"kind": "expect", "selector": "link[rel=\"https://api.w.org/\"][href$=\"/wp-json/\"]", "state": "attached"},
+    {"kind": "expect", "selector": "[data-frontend-agent-chat]", "state": "detached"},
+    {"kind": "navigate", "url": "/artist/", "waitFor": "load"},
+    {"kind": "expect", "selector": "body", "state": "visible"},
+    {"kind": "expect", "selector": "link[rel=\"https://api.w.org/\"][href$=\"/artist/wp-json/\"]", "state": "attached"},
+    {"kind": "expect", "selector": "[data-frontend-agent-chat]", "state": "detached"},
+    {"kind": "navigate", "url": "/events/", "waitFor": "load"},
+    {"kind": "expect", "selector": "body", "state": "visible"},
+    {"kind": "expect", "selector": "link[rel=\"https://api.w.org/\"][href$=\"/events/wp-json/\"]", "state": "attached"},
+    {"kind": "expect", "selector": "[data-frontend-agent-chat]", "state": "detached"},
+    {"kind": "navigate", "url": "/community/", "waitFor": "load"},
+    {"kind": "expect", "selector": "body", "state": "visible"},
+    {"kind": "expect", "selector": "link[rel=\"https://api.w.org/\"][href$=\"/community/wp-json/\"]", "state": "attached"},
+    {"kind": "expect", "selector": "[data-frontend-agent-chat]", "state": "detached"}
   ],
   "assertions": [{"type": "noPageErrors"}]
 }

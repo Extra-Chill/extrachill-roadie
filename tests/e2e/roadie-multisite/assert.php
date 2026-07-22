@@ -1,8 +1,6 @@
 <?php
 
 use AgentsAPI\AI\WP_Agent_Chat_Run_Control;
-use AgentsAPI\AI\WP_Agent_Execution_Principal;
-use AgentsAPI\AI\WP_Agent_Message;
 use DataMachine\Core\Database\Chat\ConversationStoreFactory;
 use DataMachine\Engine\AI\Actions\PendingActionHelper;
 
@@ -27,28 +25,40 @@ function roadie_e2e_ability( string $name, array $input ) {
 	return $ability->execute( $input );
 }
 
-function roadie_e2e_roadie_input( string $ability, array $input, int $user_id ): array {
-	$input['principal'] = WP_Agent_Execution_Principal::user_session(
-		$user_id,
-		'roadie',
-		WP_Agent_Execution_Principal::REQUEST_CONTEXT_REST
-	);
-	return apply_filters(
-		'frontend_agent_chat_ability_input',
-		$input,
-		$ability,
-		new WP_REST_Request(),
-		'roadie',
-		array( 'agent_slug' => 'roadie' )
-	);
-}
-
 function roadie_e2e_rest( string $method, string $route, array $params, int $user_id ): WP_REST_Response {
 	wp_set_current_user( $user_id );
 	$request = new WP_REST_Request( $method, $route );
 	$request->set_body_params( $params );
 	$response = rest_do_request( $request );
 	return rest_ensure_response( $response );
+}
+
+function roadie_e2e_stage_artist_action( int $user_id, int $artist_id, int $artist_blog_id, string $marker ): array {
+	wp_set_current_user( $user_id );
+	return PendingActionHelper::stage(
+		array(
+			'kind'          => 'roadie_e2e_artist_action',
+			'summary'       => 'Exercise Roadie artist authorization at the stored origin.',
+			'apply_input'   => array(
+				'artist_id'      => $artist_id,
+				'artist_blog_id' => $artist_blog_id,
+				'marker'         => $marker,
+			),
+			'preview_data'  => array( 'artist_id' => $artist_id, 'marker' => $marker ),
+			'user_id'       => $user_id,
+			'authorization' => array(
+				'operation' => 'roadie_e2e_artist_action',
+				'target'    => array( 'artist_id' => $artist_id ),
+			),
+		)
+	);
+}
+
+function roadie_e2e_pending_origin( array $staged ): array {
+	return array(
+		'workspace' => $staged['payload']['workspace'] ?? array(),
+		'metadata'  => $staged['payload']['metadata'] ?? array(),
+	);
 }
 
 roadie_e2e_assert( count( $sites ) === 4, 'Main, Artist, Events, and Community sites were not seeded.' );
@@ -103,6 +113,7 @@ $autosave = roadie_e2e_rest(
 );
 roadie_e2e_assert( in_array( $autosave->get_status(), array( 200, 201 ), true ), 'Artist owner could not create an autosave.' );
 $revision_id = (int) ( $autosave->get_data()['id'] ?? 0 );
+roadie_e2e_assert( $revision_id > 0, 'Artist autosave returned no revision ID.' );
 
 $revisions = roadie_e2e_rest( 'GET', '/wp/v2/artist_profile/' . $artist . '/revisions', array(), $owner );
 roadie_e2e_assert( 200 === $revisions->get_status() && count( (array) $revisions->get_data() ) > 0, 'Artist owner could not read revisions.' );
@@ -114,166 +125,200 @@ $autosave_denied = roadie_e2e_rest(
 	$stranger
 );
 roadie_e2e_assert( 403 === $autosave_denied->get_status(), 'Unrelated user autosave did not fail with 403.' );
-if ( $revision_id > 0 ) {
-	$revision_denied = roadie_e2e_rest( 'DELETE', '/wp/v2/artist_profile/' . $artist . '/revisions/' . $revision_id, array(), $stranger );
-	roadie_e2e_assert( 403 === $revision_denied->get_status(), 'Unrelated user revision delete did not fail with 403.' );
-}
+$revision_denied = roadie_e2e_rest( 'DELETE', '/wp/v2/artist_profile/' . $artist . '/revisions/' . $revision_id, array(), $stranger );
+roadie_e2e_assert( 403 === $revision_denied->get_status(), 'Unrelated user revision delete did not fail with 403.' );
 $deleted = roadie_e2e_rest( 'DELETE', '/wp/v2/artist_profile/' . $created_id, array( 'force' => true ), $owner );
 roadie_e2e_assert( 200 === $deleted->get_status(), 'Reciprocal artist owner could not delete over REST.' );
 restore_current_blog();
 
-// Create one canonical network conversation, then use it from every product surface.
-wp_set_current_user( $owner );
+// Create and continue one canonical conversation through FAC's real agents/chat route.
 switch_to_blog( (int) $sites['main'] );
-$create_input = roadie_e2e_roadie_input( 'agents/chat', array( 'agent' => 'roadie', 'context' => 'chat,roadie' ), $owner );
-$created_session = roadie_e2e_ability( 'agents/create-conversation-session', $create_input );
-roadie_e2e_assert( ! is_wp_error( $created_session ), 'Conversation creation failed.' );
-$session_id = (string) ( $created_session['session']['session_id'] ?? '' );
-roadie_e2e_assert( '' !== $session_id, 'Conversation creation returned no session ID.' );
+$first_turn = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat',
+	array(
+		'agent'      => 'roadie',
+		'message'    => 'First deterministic Roadie message.',
+		'page_url'   => get_home_url( (int) $sites['main'], '/' ),
+		'page_title' => 'Roadie Main',
+	),
+	$owner
+);
+roadie_e2e_assert( 200 === $first_turn->get_status(), 'FAC could not create the Roadie conversation through agents/chat.' );
+$first_data   = (array) ( $first_turn->get_data()['data'] ?? array() );
+$session_id  = (string) ( $first_data['session_id'] ?? '' );
+$first_run_id = (string) ( $first_data['run_id'] ?? '' );
+roadie_e2e_assert( '' !== $session_id && '' !== $first_run_id, 'FAC chat returned no session or run ID.' );
+roadie_e2e_assert( 'Deterministic Roadie initial reply.' === ( $first_data['response'] ?? '' ), 'FAC did not return the deterministic production-path reply.' );
 restore_current_blog();
 
 switch_to_blog( (int) $sites['artist'] );
-$listed = roadie_e2e_ability( 'agents/list-conversation-sessions', roadie_e2e_roadie_input( 'agents/list-conversation-sessions', array(), $owner ) );
-roadie_e2e_assert( $session_id === (string) ( $listed['sessions'][0]['session_id'] ?? '' ), 'Artist site did not list the canonical conversation.' );
+$second_turn = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat',
+	array(
+		'agent'      => 'roadie',
+		'message'    => 'Second deterministic Roadie message.',
+		'session_id' => $session_id,
+		'page_url'   => get_home_url( (int) $sites['artist'], '/' ),
+		'page_title' => 'Roadie Artist Platform',
+	),
+	$owner
+);
+roadie_e2e_assert( 200 === $second_turn->get_status(), 'FAC could not continue the conversation through agents/chat.' );
+$second_data = (array) ( $second_turn->get_data()['data'] ?? array() );
+roadie_e2e_assert( $session_id === (string) ( $second_data['session_id'] ?? '' ), 'FAC continuation changed the canonical session ID.' );
+roadie_e2e_assert( 'Deterministic Roadie continuation reply.' === ( $second_data['response'] ?? '' ), 'FAC continuation bypassed the deterministic production runtime.' );
+$conversation_text = wp_json_encode( $second_data['conversation'] ?? array() );
+roadie_e2e_assert( str_contains( (string) $conversation_text, 'First deterministic Roadie message.' ), 'Continuation lost the first user turn.' );
+roadie_e2e_assert( str_contains( (string) $conversation_text, 'Second deterministic Roadie message.' ), 'Continuation did not persist the second user turn.' );
+
+$listed_response = roadie_e2e_rest( 'GET', '/frontend-agent-chat/v1/chat/sessions', array( 'agent' => 'roadie' ), $owner );
+$listed          = (array) ( $listed_response->get_data()['data'] ?? array() );
+roadie_e2e_assert( 200 === $listed_response->get_status(), 'Artist site could not list FAC sessions.' );
+roadie_e2e_assert( $session_id === (string) ( $listed['sessions'][0]['id'] ?? $listed['sessions'][0]['session_id'] ?? '' ), 'Artist site did not list the canonical conversation.' );
 restore_current_blog();
 
 switch_to_blog( (int) $sites['community'] );
-$loaded = roadie_e2e_ability( 'agents/get-conversation-session', roadie_e2e_roadie_input( 'agents/get-conversation-session', array( 'session_id' => $session_id ), $owner ) );
-roadie_e2e_assert( $session_id === (string) ( $loaded['session']['session_id'] ?? '' ), 'Community site did not read the canonical conversation.' );
-$foreign_read = roadie_e2e_ability( 'agents/get-conversation-session', roadie_e2e_roadie_input( 'agents/get-conversation-session', array( 'session_id' => $session_id ), $stranger ) );
-roadie_e2e_assert( is_wp_error( $foreign_read ), 'Unrelated user read another owner\'s conversation.' );
+$loaded_response = roadie_e2e_rest( 'GET', '/frontend-agent-chat/v1/chat/' . $session_id, array( 'agent' => 'roadie' ), $owner );
+roadie_e2e_assert( 200 === $loaded_response->get_status(), 'Community site did not read the canonical conversation through FAC.' );
+$loaded_data = (array) ( $loaded_response->get_data()['data'] ?? array() );
+roadie_e2e_assert( $session_id === (string) ( $loaded_data['session_id'] ?? '' ), 'FAC returned the wrong canonical conversation.' );
+roadie_e2e_assert( str_contains( (string) wp_json_encode( $loaded_data['conversation'] ?? array() ), 'Second deterministic Roadie message.' ), 'FAC session read lost the continued turn.' );
+$foreign_read = roadie_e2e_rest( 'GET', '/frontend-agent-chat/v1/chat/' . $session_id, array( 'agent' => 'roadie' ), $stranger );
+roadie_e2e_assert( 403 === $foreign_read->get_status() || 404 === $foreign_read->get_status(), 'Unrelated user read another owner\'s conversation.' );
 restore_current_blog();
 
 switch_to_blog( (int) $sites['events'] );
-$titled = roadie_e2e_ability(
-	'agents/update-conversation-session-title',
-	roadie_e2e_roadie_input( 'agents/update-conversation-session-title', array( 'session_id' => $session_id, 'title' => 'Roadie Network Journey' ), $owner )
-);
-roadie_e2e_assert( 'Roadie Network Journey' === ( $titled['session']['title'] ?? '' ), 'Events site could not title the canonical conversation.' );
+$titled_response = roadie_e2e_rest( 'POST', '/frontend-agent-chat/v1/chat/' . $session_id . '/title', array( 'agent' => 'roadie', 'title' => 'Roadie Network Journey' ), $owner );
+roadie_e2e_assert( 200 === $titled_response->get_status() && 'Roadie Network Journey' === ( $titled_response->get_data()['data']['title'] ?? '' ), 'Events site could not title the canonical conversation through FAC.' );
 restore_current_blog();
-
-$store = ConversationStoreFactory::get();
-roadie_e2e_assert(
-	$store->update_session(
-		$session_id,
-		array(
-			WP_Agent_Message::text( 'user', 'Continue this Roadie journey.' ),
-			WP_Agent_Message::text( 'assistant', 'The journey continued across the network.' ),
-		),
-		array( 'continued_from' => 'community' ),
-		'e2e',
-		'fixture'
-	),
-	'Canonical conversation continuation could not be persisted.'
-);
 
 switch_to_blog( (int) $sites['main'] );
-$continued = roadie_e2e_ability( 'agents/get-conversation-session', roadie_e2e_roadie_input( 'agents/get-conversation-session', array( 'session_id' => $session_id ), $owner ) );
-roadie_e2e_assert( 2 === count( $continued['session']['messages'] ?? array() ), 'Continued messages were not visible from main.' );
+$retitled_response = roadie_e2e_rest( 'GET', '/frontend-agent-chat/v1/chat/sessions', array( 'agent' => 'roadie' ), $owner );
+$retitled_sessions = (array) ( $retitled_response->get_data()['data']['sessions'] ?? array() );
+$retitled_session  = current( array_filter( $retitled_sessions, static fn( array $session ): bool => $session_id === (string) ( $session['id'] ?? $session['session_id'] ?? '' ) ) );
+roadie_e2e_assert( is_array( $retitled_session ) && 'Roadie Network Journey' === ( $retitled_session['title'] ?? '' ), 'Session title did not persist back to the main site.' );
 restore_current_blog();
 
-// Bind a run and queue to the real session owner and prove a foreign owner is denied.
+// The production route created the run under Roadie's network workspace and user owner.
+$store = ConversationStoreFactory::get();
 $workspace = \AgentsAPI\Core\Workspace\WP_Agent_Workspace_Scope::from_array( extrachill_roadie_conversation_workspace() );
 $owner_tuple = array( 'type' => 'user', 'key' => (string) $owner );
+$production_run = WP_Agent_Chat_Run_Control::get_run( $first_run_id, $workspace, $owner_tuple );
+roadie_e2e_assert( is_array( $production_run ) && $session_id === ( $production_run['session_id'] ?? '' ), 'FAC production run was not bound to Roadie workspace and owner.' );
+$foreign_production_run = WP_Agent_Chat_Run_Control::get_run( $first_run_id, $workspace, array( 'type' => 'user', 'key' => (string) $stranger ) );
+roadie_e2e_assert( null === $foreign_production_run, 'Foreign owner could inspect the FAC production run.' );
+
+// Exercise FAC's queue route against an active run bound to that production session.
 $run_id = WP_Agent_Chat_Run_Control::generate_run_id();
 $run = WP_Agent_Chat_Run_Control::start_run( $run_id, $session_id, array( 'source' => 'roadie-e2e' ), $workspace, $owner_tuple, $store );
 roadie_e2e_assert( ! is_wp_error( $run ) && 'running' === ( $run['status'] ?? '' ), 'Owner-bound run could not start.' );
 
 switch_to_blog( (int) $sites['community'] );
-$queue_input = roadie_e2e_roadie_input(
-	'agents/queue-chat-message',
+$queued_response = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat/queue',
 	array(
 		'agent'        => 'roadie',
 		'session_id'   => $session_id,
 		'run_id'       => $run_id,
 		'message'      => 'Queue this owned follow-up.',
-		'session_owner' => $owner_tuple,
 	),
 	$owner
 );
-$queued = roadie_e2e_ability( 'agents/queue-chat-message', $queue_input );
-roadie_e2e_assert( ! is_wp_error( $queued ) && ! empty( $queued['queued_message_id'] ), 'Owner queue request failed.' );
-
-$foreign_queue = roadie_e2e_roadie_input(
-	'agents/queue-chat-message',
+roadie_e2e_assert( 200 === $queued_response->get_status() && ! empty( $queued_response->get_data()['data']['queued_message_id'] ), 'FAC owner queue request failed.' );
+$foreign_queued = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat/queue',
 	array(
 		'agent'         => 'roadie',
 		'session_id'    => $session_id,
 		'run_id'        => $run_id,
 		'message'       => 'Poison another owner\'s queue.',
-		'session_owner' => array( 'type' => 'user', 'key' => (string) $stranger ),
 	),
 	$stranger
 );
-$foreign_queued = roadie_e2e_ability( 'agents/queue-chat-message', $foreign_queue );
-roadie_e2e_assert( is_wp_error( $foreign_queued ), 'Foreign owner poisoned the conversation queue.' );
+roadie_e2e_assert( 403 === $foreign_queued->get_status() || 404 === $foreign_queued->get_status(), 'Foreign owner poisoned the conversation queue.' );
 restore_current_blog();
 
-// Stage on Events and resolve only through the server-stored origin projection.
+// Resolve through FAC so Roadie validates the untrusted origin before Data Machine routes it.
 switch_to_blog( (int) $sites['events'] );
-wp_set_current_user( $owner );
-$staged = PendingActionHelper::stage(
-	array(
-		'kind'        => 'roadie_e2e_origin',
-		'summary'     => 'Resolve only at the Events origin.',
-		'apply_input' => array( 'marker' => 'stored-origin' ),
-		'user_id'     => $owner,
-	)
-);
+$staged = roadie_e2e_stage_artist_action( $owner, $artist, (int) $sites['artist'], 'stored-origin' );
 roadie_e2e_assert( ! empty( $staged['staged'] ), 'Pending action could not be staged on Events.' );
-$origin = array(
-	'workspace' => $staged['payload']['workspace'],
-	'metadata'  => $staged['payload']['metadata'],
-);
+$origin = roadie_e2e_pending_origin( $staged );
 restore_current_blog();
 
 switch_to_blog( (int) $sites['community'] );
-$resolve_input = apply_filters(
-	'frontend_agent_chat_pending_action_resolve_input',
-	array( 'action_id' => $staged['action_id'], 'decision' => 'accepted', 'resolver' => 'user:' . $owner ),
-	new WP_REST_Request(),
-	$origin,
-	array( 'agent_slug' => 'roadie' )
+$resolved_response = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat/actions/resolve',
+	array( 'action_id' => $staged['action_id'], 'decision' => 'accepted', 'origin' => $origin ),
+	$owner
 );
-$resolved = roadie_e2e_ability( 'agents/resolve-pending-action', $resolve_input );
-roadie_e2e_assert( ! is_wp_error( $resolved ), 'Stored-origin pending action did not resolve.' );
+roadie_e2e_assert( 200 === $resolved_response->get_status(), 'Stored-origin pending action did not resolve through FAC.' );
+$resolved = (array) ( $resolved_response->get_data()['data'] ?? array() );
+roadie_e2e_assert( ! empty( $resolved['success'] ) && (int) $sites['events'] === (int) ( $resolved['result']['blog_id'] ?? 0 ), 'Pending action did not execute at its stored Events origin.' );
 restore_current_blog();
 
 switch_to_blog( (int) $sites['events'] );
 roadie_e2e_assert( 'stored-origin' === ( get_option( 'roadie_e2e_resolved_action', array() )['marker'] ?? '' ), 'Pending handler did not execute at the Events origin.' );
-$forged = PendingActionHelper::stage(
-	array(
-		'kind'        => 'roadie_e2e_origin',
-		'summary'     => 'Reject forged origin.',
-		'apply_input' => array( 'marker' => 'must-not-run' ),
-		'user_id'     => $owner,
-	)
-);
-$forged_origin = array( 'workspace' => $forged['payload']['workspace'], 'metadata' => $forged['payload']['metadata'] );
+$forged        = roadie_e2e_stage_artist_action( $owner, $artist, (int) $sites['artist'], 'forged-origin-must-not-run' );
+$forged_origin = roadie_e2e_pending_origin( $forged );
 restore_current_blog();
 
 $forged_origin['workspace']['workspace_id'] = get_home_url( (int) $sites['main'] );
-$forged_input = apply_filters(
-	'frontend_agent_chat_pending_action_resolve_input',
-	array( 'action_id' => $forged['action_id'], 'decision' => 'accepted', 'resolver' => 'user:' . $owner ),
-	new WP_REST_Request(),
-	$forged_origin,
-	array( 'agent_slug' => 'roadie' )
+$forged_response = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat/actions/resolve',
+	array( 'action_id' => $forged['action_id'], 'decision' => 'accepted', 'origin' => $forged_origin ),
+	$owner
 );
-roadie_e2e_assert( PHP_INT_MAX === ( $forged_input['context']['wordpress']['blog_id'] ?? 0 ), 'Forged site origin did not fail closed.' );
-$forged_result = roadie_e2e_ability( 'agents/resolve-pending-action', $forged_input );
-roadie_e2e_assert( is_wp_error( $forged_result ), 'Forged site origin resolved a pending action.' );
+$forged_data = (array) ( $forged_response->get_data()['data'] ?? array() );
+roadie_e2e_assert( 200 === $forged_response->get_status() && 'Pending action origin could not be verified.' === ( $forged_data['error'] ?? '' ), 'Forged site origin did not reach Roadie/Data Machine origin denial.' );
 
-$foreign_network_origin = $origin;
+switch_to_blog( (int) $sites['events'] );
+$foreign_network        = roadie_e2e_stage_artist_action( $owner, $artist, (int) $sites['artist'], 'foreign-network-must-not-run' );
+$foreign_network_origin = roadie_e2e_pending_origin( $foreign_network );
 $foreign_network_origin['workspace'] = array( 'workspace_type' => 'network', 'workspace_id' => '999' );
-$foreign_network_input = apply_filters(
-	'frontend_agent_chat_pending_action_resolve_input',
-	array( 'action_id' => 'act_foreign_network', 'decision' => 'accepted' ),
-	new WP_REST_Request(),
-	$foreign_network_origin,
-	array( 'agent_slug' => 'roadie' )
+restore_current_blog();
+$foreign_network_response = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat/actions/resolve',
+	array( 'action_id' => $foreign_network['action_id'], 'decision' => 'accepted', 'origin' => $foreign_network_origin ),
+	$owner
 );
-roadie_e2e_assert( PHP_INT_MAX === ( $foreign_network_input['context']['wordpress']['blog_id'] ?? 0 ), 'Foreign network workspace did not fail closed.' );
+$foreign_network_data = (array) ( $foreign_network_response->get_data()['data'] ?? array() );
+roadie_e2e_assert( 200 === $foreign_network_response->get_status() && 'Pending action origin could not be verified.' === ( $foreign_network_data['error'] ?? '' ), 'Foreign-network workspace did not reach Roadie/Data Machine origin denial.' );
+
+// Owner scope denies another team member before handler execution.
+switch_to_blog( (int) $sites['events'] );
+$foreign_owner = roadie_e2e_stage_artist_action( $owner, $artist, (int) $sites['artist'], 'foreign-owner-must-not-run' );
+$foreign_owner_origin = roadie_e2e_pending_origin( $foreign_owner );
+restore_current_blog();
+$foreign_owner_response = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat/actions/resolve',
+	array( 'action_id' => $foreign_owner['action_id'], 'decision' => 'accepted', 'origin' => $foreign_owner_origin ),
+	$stranger
+);
+$foreign_owner_data = (array) ( $foreign_owner_response->get_data()['data'] ?? array() );
+roadie_e2e_assert( 200 === $foreign_owner_response->get_status() && 'You do not have permission to resolve this pending action.' === ( $foreign_owner_data['error'] ?? '' ), 'Unrelated user did not reach pending-action owner denial.' );
+
+// A stranger-owned action reaches the handler and fails the real artist object capability.
+switch_to_blog( (int) $sites['events'] );
+$forbidden_artist = roadie_e2e_stage_artist_action( $stranger, $artist, (int) $sites['artist'], 'artist-capability-must-not-run' );
+$forbidden_artist_origin = roadie_e2e_pending_origin( $forbidden_artist );
+restore_current_blog();
+$forbidden_artist_response = roadie_e2e_rest(
+	'POST',
+	'/frontend-agent-chat/v1/chat/actions/resolve',
+	array( 'action_id' => $forbidden_artist['action_id'], 'decision' => 'accepted', 'origin' => $forbidden_artist_origin ),
+	$stranger
+);
+$forbidden_artist_data = (array) ( $forbidden_artist_response->get_data()['data'] ?? array() );
+roadie_e2e_assert( 200 === $forbidden_artist_response->get_status() && 'Resolver cannot edit the fixture artist.' === ( $forbidden_artist_data['error'] ?? '' ), 'Unrelated user did not reach the real artist object-capability denial.' );
+roadie_e2e_assert( 1 === (int) get_site_option( 'roadie_e2e_pending_apply_count', 0 ), 'A denied pending action reached the deterministic apply handler.' );
 
 // Canonical artist mapping must use the stored term ID, not the deliberately different slug.
 switch_to_blog( (int) $sites['main'] );
@@ -309,14 +354,19 @@ roadie_e2e_assert( is_array( $calendar_event ), 'Seeded event was absent from th
 foreach ( array( 'id', 'title', 'datetime', 'end_datetime', 'venue', 'taxonomies', 'occurrence_display', 'ticket_url', 'permalink' ) as $field ) {
 	roadie_e2e_assert( array_key_exists( $field, $calendar_event ) && null !== $calendar_event[ $field ], 'Event adapter lost ' . $field . '.' );
 }
+roadie_e2e_assert( ! empty( $calendar_event['venue'] ) && str_contains( (string) wp_json_encode( $calendar_event['venue'] ), 'The Royal American' ), 'Event adapter lost the seeded venue identity.' );
+$taxonomy_evidence = (string) wp_json_encode( $calendar_event['taxonomies'] );
+roadie_e2e_assert( str_contains( $taxonomy_evidence, 'Different Local Slug' ) && str_contains( $taxonomy_evidence, 'Charleston' ), 'Event adapter lost seeded artist/location taxonomy data.' );
+roadie_e2e_assert( '' !== trim( (string) $calendar_event['occurrence_display'] ), 'Event adapter returned an empty occurrence display.' );
+roadie_e2e_assert( get_permalink( (int) $fixture['event_id'] ) === $calendar_event['permalink'], 'Event adapter changed the event permalink.' );
 roadie_e2e_assert( 'https://tickets.example.test/roadie-show?ref=e2e' === $calendar_event['ticket_url'], 'Event adapter changed the ticket URL.' );
 roadie_e2e_assert( '2030-07-21T20:30:00' === $calendar_event['datetime'], 'Event adapter changed the start time.' );
 roadie_e2e_assert( '2030-07-21T23:00:00' === $calendar_event['end_datetime'], 'Event adapter changed the end time.' );
 restore_current_blog();
 
 switch_to_blog( (int) $sites['artist'] );
-$deleted_session = roadie_e2e_ability( 'agents/delete-conversation-session', roadie_e2e_roadie_input( 'agents/delete-conversation-session', array( 'session_id' => $session_id ), $owner ) );
-roadie_e2e_assert( true === ( $deleted_session['deleted'] ?? false ), 'Artist site could not delete the canonical conversation.' );
+$deleted_session = roadie_e2e_rest( 'DELETE', '/frontend-agent-chat/v1/chat/' . $session_id, array( 'agent' => 'roadie' ), $owner );
+roadie_e2e_assert( 200 === $deleted_session->get_status() && ! empty( $deleted_session->get_data()['data']['deleted'] ), 'Artist site could not delete the canonical conversation through FAC.' );
 restore_current_blog();
 
 echo 'Roadie multisite artist journey passed (' . $passes . " assertions).\n";
