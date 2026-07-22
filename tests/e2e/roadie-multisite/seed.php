@@ -9,15 +9,28 @@ if ( ! is_string( $host ) || '' === $host ) {
 	throw new RuntimeException( 'Could not resolve the fixture network host.' );
 }
 
-$sites = array( 'main' => get_main_site_id() );
-foreach ( array( 'artist', 'events', 'community' ) as $site_key ) {
+$sites         = array( 'main' => get_main_site_id() );
+$site_topology = array(
+	'community'       => 2,
+	'shop'            => 3,
+	'artist'          => 4,
+	'placeholder-five' => 5,
+	'placeholder-six' => 6,
+	'events'          => 7,
+);
+foreach ( $site_topology as $site_key => $expected_id ) {
 	$path     = '/' . $site_key . '/';
 	$existing = get_sites( array( 'domain' => $host, 'path' => $path, 'number' => 1 ) );
 	$site_id  = $existing ? (int) $existing[0]->blog_id : wpmu_create_blog( $host, $path, 'Roadie ' . ucfirst( $site_key ), 1 );
 	if ( is_wp_error( $site_id ) || ! $site_id ) {
 		throw new RuntimeException( 'Could not create the ' . $site_key . ' fixture site.' );
 	}
-	$sites[ $site_key ] = (int) $site_id;
+	if ( $expected_id !== (int) $site_id ) {
+		throw new RuntimeException( sprintf( 'Expected %s to use canonical blog ID %d; got %d.', $site_key, $expected_id, $site_id ) );
+	}
+	if ( in_array( $site_key, array( 'community', 'artist', 'events' ), true ) ) {
+		$sites[ $site_key ] = (int) $site_id;
+	}
 }
 update_site_option( 'roadie_e2e_sites', $sites );
 

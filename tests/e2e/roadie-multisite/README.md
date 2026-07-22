@@ -22,7 +22,9 @@ cannot drift from the attributed Roadie revision.
 
 The runner also requires explicit WordPress and PHP versions. Use PHP `8.4` for
 the live-equivalent package run; both runtime selections are retained in
-provenance.
+provenance. Roadie disables the rig's synthetic alpha/beta self-test and creates
+the product topology itself so Community, Shop, Artist, and Events retain their
+canonical network blog IDs.
 
 The standalone `agents-api` mount is intentional. Queue ownership depends on the
 canonical fix from Automattic/agents-api#451; mounting it before Data Machine

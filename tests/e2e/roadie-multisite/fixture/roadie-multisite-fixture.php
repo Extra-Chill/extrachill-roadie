@@ -10,20 +10,6 @@ defined( 'ABSPATH' ) || exit;
 
 use DataMachine\Engine\AI\Actions\PendingActionAuthorizationReceipt;
 
-if ( ! function_exists( 'ec_get_blog_id' ) ) {
-	function ec_get_blog_id( $key ) {
-		$sites = get_site_option( 'roadie_e2e_sites', array() );
-		return isset( $sites[ $key ] ) ? (int) $sites[ $key ] : null;
-	}
-}
-
-if ( ! function_exists( 'ec_get_site_url' ) ) {
-	function ec_get_site_url( $key ) {
-		$blog_id = ec_get_blog_id( $key );
-		return $blog_id ? untrailingslashit( get_home_url( $blog_id, '/' ) ) : null;
-	}
-}
-
 add_filter(
 	'datamachine_ai_request_result',
 	static function ( $result, array $provider_request, string $provider ) {

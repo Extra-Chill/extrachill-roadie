@@ -38,6 +38,7 @@ try {
   assert.equal(settings.wp_codebox_extra_plugins.length, Object.keys(componentFiles).length + 1);
   assert.equal(settings.wordpress_runtime_version, '7.0');
   assert.equal(settings.wordpress_runtime_php_version, '8.4');
+  assert.equal(settings.wordpress_multisite_synthetic_fixture, false);
   assert.equal(settings.wordpress_runtime_prepare_steps[0].metadata.roadie_e2e_provenance.components.length, Object.keys(checkoutFiles).length);
   assert.equal(provenance.wordpress, '7.0');
   assert.equal(provenance.php, '8.4');

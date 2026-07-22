@@ -94,6 +94,7 @@ export function buildSettings(components, wordpressVersion, phpVersion) {
   return {
     wordpress_runtime_version: selectedWordpressVersion,
     wordpress_runtime_php_version: selectedPhpVersion,
+    wordpress_multisite_synthetic_fixture: false,
     wp_codebox_extra_plugins: [
       {
         source: fixture,
