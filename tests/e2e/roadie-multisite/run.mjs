@@ -17,7 +17,7 @@ const settings = buildSettings(components, wordpressVersion, phpVersion);
 await mkdir(artifactRoot, { recursive: true });
 await writeFile(provenanceFile, `${JSON.stringify(buildProvenance(components, wordpressVersion, phpVersion), null, 2)}\n`);
 
-const result = spawnSync('homeboy', ['rig', 'up', 'wordpress-multisite-e2e'], {
+const result = spawnSync('homeboy', ['--placement', 'local', 'rig', 'up', 'wordpress-multisite-e2e'], {
   encoding: 'utf8',
   env: {
     ...process.env,
