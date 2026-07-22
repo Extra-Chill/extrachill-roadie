@@ -21,6 +21,10 @@ The standalone `agents-api` mount is intentional. Queue ownership depends on the
 canonical fix from Automattic/agents-api#451; mounting it before Data Machine
 prevents an older bundled copy from silently weakening the journey.
 
+The API and Network mounts are also intentional product composition: Extra Chill
+Users declares both as required plugins, so the journey activates those real
+dependencies rather than bypassing WordPress dependency enforcement.
+
 ## Validate Without Playground
 
 ```bash

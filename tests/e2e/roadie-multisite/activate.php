@@ -7,6 +7,8 @@ $plugins = array(
 	'agents-api/agents-api.php',
 	'data-machine/data-machine.php',
 	'frontend-agent-chat/frontend-agent-chat.php',
+	'extrachill-network/extrachill-network.php',
+	'extrachill-api/extrachill-api.php',
 	'extrachill-users/extrachill-users.php',
 	'extrachill-artist-platform/extrachill-artist-platform.php',
 	'data-machine-events/data-machine-events.php',
