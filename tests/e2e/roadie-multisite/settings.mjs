@@ -119,6 +119,15 @@ export function buildSettings(components, wordpressVersion, phpVersion) {
         provenance: componentProvenance(components, slug, 'theme'),
       },
     })),
+    wp_codebox_dependency_overlays: [{
+      kind: 'composer-package',
+      package: 'wordpress/agents-api',
+      source: components['agents-api'].path,
+      consumer: 'data-machine',
+      metadata: {
+        provenance: componentProvenance(components, 'agents-api'),
+      },
+    }],
     wordpress_runtime_prepare_steps: [
       phpStep('activate.php', { roadie_e2e_provenance: provenance }),
       phpStep('seed.php'),

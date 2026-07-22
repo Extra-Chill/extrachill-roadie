@@ -18,8 +18,11 @@ try {
       ? `/*\nTheme Name: ${slug} validation fixture\n*/\n`
       : `<?php\n/* Plugin Name: ${slug} validation fixture */\n`;
     await writeFile(path.join(componentPath, checkoutFile), fixture);
+    if (Object.hasOwn(themeFiles, slug)) {
+      await writeFile(path.join(componentPath, 'index.php'), '<?php\n');
+    }
     run('git', ['init', '--quiet', componentPath]);
-    run('git', ['-C', componentPath, 'add', checkoutFile]);
+    run('git', ['-C', componentPath, 'add', '.']);
     run('git', ['-C', componentPath, '-c', 'user.name=Roadie E2E', '-c', 'user.email=roadie-e2e@example.test', 'commit', '--quiet', '-m', 'test fixture']);
     const revision = run('git', ['-C', componentPath, 'rev-parse', 'HEAD']).stdout.trim();
     manifest[slug] = { path: componentPath, version: revision };
@@ -53,6 +56,21 @@ try {
         kind: 'theme',
         revision: manifest.extrachill.version,
         content_sha256: components.extrachill.contentSha256,
+        dirty: false,
+      },
+    },
+  }]);
+  assert.deepEqual(settings.wp_codebox_dependency_overlays, [{
+    kind: 'composer-package',
+    package: 'wordpress/agents-api',
+    source: manifest['agents-api'].path,
+    consumer: 'data-machine',
+    metadata: {
+      provenance: {
+        schema: 'extrachill-roadie/component-checkout/v1',
+        component: 'agents-api',
+        revision: manifest['agents-api'].version,
+        content_sha256: components['agents-api'].contentSha256,
         dirty: false,
       },
     },
@@ -96,7 +114,7 @@ try {
     assert.doesNotMatch(source, /\/var\/(?:lib\/datamachine\/workspace|www)\//);
   }
 
-  const rigCheck = run('homeboy', ['rig', 'check', 'wordpress-multisite-e2e'], {
+  const rigCheck = run('homeboy', ['--placement', 'local', 'rig', 'check', 'wordpress-multisite-e2e'], {
     HOMEBOY_ARTIFACT_ROOT: path.join(temporaryRoot, 'artifacts'),
     HOMEBOY_NETWORK_E2E_RESULT_FILE: path.join(temporaryRoot, 'rig-result.json'),
     HOMEBOY_SETTINGS_JSON: JSON.stringify(settings),

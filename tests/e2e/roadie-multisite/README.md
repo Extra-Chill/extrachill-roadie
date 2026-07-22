@@ -26,7 +26,9 @@ provenance.
 
 The standalone `agents-api` mount is intentional. Queue ownership depends on the
 canonical fix from Automattic/agents-api#451; mounting it before Data Machine
-prevents an older bundled copy from silently weakening the journey.
+keeps the standalone runtime explicit. The same immutable checkout is also
+declared through WP Codebox's Composer dependency overlay contract so Data
+Machine cannot load an older bundled copy from its committed vendor directory.
 
 The API and Network mounts are also intentional product composition: Extra Chill
 Users declares both as required plugins, so the journey activates those real
