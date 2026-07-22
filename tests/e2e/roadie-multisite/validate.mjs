@@ -79,9 +79,9 @@ try {
   assert.equal(provenance.components.find((component) => component.slug === 'extrachill')?.kind, 'theme');
   assert.deepEqual(
     settings.wordpress_runtime_prepare_steps.map((step) => step.command),
-    ['wordpress.run-php', 'wordpress.run-php'],
+    ['wordpress.run-php', 'wordpress.run-php', 'wordpress.run-php'],
   );
-  assert.equal(settings.wordpress_runtime_post_steps[0].command, 'wordpress.run-php');
+  assert.deepEqual(settings.wordpress_runtime_post_steps, []);
   assert.equal(settings.wp_codebox_scenario_manifests.length, 2);
 
   const mismatch = structuredClone(manifest);

@@ -132,12 +132,13 @@ export function buildSettings(components, wordpressVersion, phpVersion) {
     wordpress_runtime_prepare_steps: [
       phpStep('activate.php', { roadie_e2e_provenance: provenance }),
       phpStep('seed.php'),
+      phpStep('assert.php'),
     ],
     wp_codebox_scenario_manifests: [
       path.join(root, 'browser-anonymous.json'),
       path.join(root, 'browser-authenticated.json'),
     ],
-    wordpress_runtime_post_steps: [phpStep('assert.php')],
+    wordpress_runtime_post_steps: [],
   };
 }
 
