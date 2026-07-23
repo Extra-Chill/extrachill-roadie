@@ -320,7 +320,10 @@ $resolved_response = roadie_e2e_rest(
 	array( 'action_id' => $staged['action_id'], 'decision' => 'accepted', 'origin' => $origin ),
 	$owner
 );
-roadie_e2e_assert( 200 === $resolved_response->get_status(), 'Stored-origin pending action did not resolve through FAC.' );
+roadie_e2e_assert(
+	200 === $resolved_response->get_status(),
+	'Stored-origin pending action did not resolve through FAC: ' . wp_json_encode( $resolved_response->get_data() )
+);
 $resolved = (array) ( $resolved_response->get_data()['data'] ?? array() );
 roadie_e2e_assert( ! empty( $resolved['success'] ) && (int) $sites['events'] === (int) ( $resolved['result']['blog_id'] ?? 0 ), 'Pending action did not execute at its stored Events origin.' );
 restore_current_blog();
