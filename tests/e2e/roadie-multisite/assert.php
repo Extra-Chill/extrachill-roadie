@@ -26,6 +26,9 @@ function roadie_e2e_ability( string $name, array $input ) {
 }
 
 function roadie_e2e_rest( string $method, string $route, array $params, int $user_id ): WP_REST_Response {
+	if ( ! defined( 'REST_REQUEST' ) ) {
+		define( 'REST_REQUEST', true );
+	}
 	wp_set_current_user( $user_id );
 	$request = new WP_REST_Request( $method, $route );
 	$request->set_body_params( $params );
