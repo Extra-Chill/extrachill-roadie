@@ -406,8 +406,13 @@ restore_current_blog();
 
 // Product adapters must preserve producer-owned venue and occurrence fields.
 switch_to_blog( (int) $sites['events'] );
+$venue_term = get_term( (int) $fixture['venue_id'], 'venue' );
+roadie_e2e_assert( $venue_term instanceof WP_Term, 'Seeded venue term is unavailable on Events.' );
 $venue = roadie_e2e_ability( 'extrachill/events-get-venue', array( 'id' => (int) $fixture['venue_id'] ) );
-roadie_e2e_assert( ! is_wp_error( $venue ), 'Venue detail adapter failed.' );
+roadie_e2e_assert(
+	! is_wp_error( $venue ),
+	'Venue detail adapter failed: ' . ( is_wp_error( $venue ) ? $venue->get_error_code() . ': ' . $venue->get_error_message() : wp_json_encode( $venue ) )
+);
 foreach ( array( 'id', 'name', 'slug', 'address', 'city', 'state', 'zip', 'country', 'coordinates', 'timezone', 'website' ) as $field ) {
 	roadie_e2e_assert( ! empty( $venue[ $field ] ), 'Venue adapter lost ' . $field . '.' );
 }
