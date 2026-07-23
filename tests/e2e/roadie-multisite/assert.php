@@ -144,7 +144,10 @@ $first_turn = roadie_e2e_rest(
 	),
 	$owner
 );
-roadie_e2e_assert( 200 === $first_turn->get_status(), 'FAC could not create the Roadie conversation through agents/chat.' );
+roadie_e2e_assert(
+	200 === $first_turn->get_status(),
+	'FAC could not create the Roadie conversation through agents/chat: ' . wp_json_encode( $first_turn->get_data() )
+);
 $first_data   = (array) ( $first_turn->get_data()['data'] ?? array() );
 $session_id  = (string) ( $first_data['session_id'] ?? '' );
 $first_run_id = (string) ( $first_data['run_id'] ?? '' );
@@ -165,7 +168,10 @@ $second_turn = roadie_e2e_rest(
 	),
 	$owner
 );
-roadie_e2e_assert( 200 === $second_turn->get_status(), 'FAC could not continue the conversation through agents/chat.' );
+roadie_e2e_assert(
+	200 === $second_turn->get_status(),
+	'FAC could not continue the conversation through agents/chat: ' . wp_json_encode( $second_turn->get_data() )
+);
 $second_data = (array) ( $second_turn->get_data()['data'] ?? array() );
 roadie_e2e_assert( $session_id === (string) ( $second_data['session_id'] ?? '' ), 'FAC continuation changed the canonical session ID.' );
 roadie_e2e_assert( 'Deterministic Roadie continuation reply.' === ( $second_data['response'] ?? '' ), 'FAC continuation bypassed the deterministic production runtime.' );
