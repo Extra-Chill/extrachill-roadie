@@ -136,6 +136,19 @@ restore_current_blog();
 
 // Create and continue one canonical conversation through FAC's real agents/chat route.
 switch_to_blog( (int) $sites['main'] );
+wp_set_current_user( $owner );
+$roadie_agent_id = extrachill_roadie_get_agent_id();
+$access_diagnostics = array(
+	'access_roadie'       => user_can( $owner, 'access_roadie' ),
+	'roadie_agent_id'     => $roadie_agent_id,
+	'host_filter'         => (bool) apply_filters( 'datamachine_can_access_agent', false, $roadie_agent_id, $owner, 'viewer' ),
+	'canonical_access'    => WP_Agent_Access::can_current_principal_access_agent( 'roadie', WP_Agent_Access_Grant::ROLE_VIEWER ),
+	'bridge_filter_count' => has_filter( 'wp_agent_can_access_agent' ),
+);
+roadie_e2e_assert(
+	$access_diagnostics['access_roadie'] && $access_diagnostics['host_filter'] && $access_diagnostics['canonical_access'],
+	'Roadie team access did not reach the canonical agent gate: ' . wp_json_encode( $access_diagnostics )
+);
 $first_turn = roadie_e2e_rest(
 	'POST',
 	'/frontend-agent-chat/v1/chat',
