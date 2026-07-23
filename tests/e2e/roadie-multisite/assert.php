@@ -328,7 +328,7 @@ $resolved = (array) ( $resolved_response->get_data()['data'] ?? array() );
 roadie_e2e_assert(
 	$staged['action_id'] === ( $resolved['action_id'] ?? '' )
 		&& 'accepted' === ( $resolved['decision'] ?? '' )
-		&& (int) $sites['events'] === (int) ( $resolved['result']['blog_id'] ?? 0 ),
+		&& (int) $sites['events'] === (int) ( $resolved['result']['result']['blog_id'] ?? 0 ),
 	'Pending action did not execute at its stored Events origin: ' . wp_json_encode( $resolved )
 );
 restore_current_blog();
@@ -347,7 +347,7 @@ $forged_response = roadie_e2e_rest(
 	$owner
 );
 $forged_data = (array) ( $forged_response->get_data()['data'] ?? array() );
-roadie_e2e_assert( 200 === $forged_response->get_status() && 'Pending action origin could not be verified.' === ( $forged_data['error'] ?? '' ), 'Forged site origin did not reach Roadie/Data Machine origin denial.' );
+roadie_e2e_assert( 200 === $forged_response->get_status() && 'Pending action origin could not be verified.' === ( $forged_data['result']['error'] ?? '' ), 'Forged site origin did not reach Roadie/Data Machine origin denial.' );
 
 switch_to_blog( (int) $sites['events'] );
 $foreign_network        = roadie_e2e_stage_artist_action( $owner, $artist, (int) $sites['artist'], 'foreign-network-must-not-run' );
@@ -361,7 +361,7 @@ $foreign_network_response = roadie_e2e_rest(
 	$owner
 );
 $foreign_network_data = (array) ( $foreign_network_response->get_data()['data'] ?? array() );
-roadie_e2e_assert( 200 === $foreign_network_response->get_status() && 'Pending action origin could not be verified.' === ( $foreign_network_data['error'] ?? '' ), 'Foreign-network workspace did not reach Roadie/Data Machine origin denial.' );
+roadie_e2e_assert( 200 === $foreign_network_response->get_status() && 'Pending action origin could not be verified.' === ( $foreign_network_data['result']['error'] ?? '' ), 'Foreign-network workspace did not reach Roadie/Data Machine origin denial.' );
 
 // Owner scope denies another team member before handler execution.
 switch_to_blog( (int) $sites['events'] );
@@ -375,7 +375,7 @@ $foreign_owner_response = roadie_e2e_rest(
 	$stranger
 );
 $foreign_owner_data = (array) ( $foreign_owner_response->get_data()['data'] ?? array() );
-roadie_e2e_assert( 200 === $foreign_owner_response->get_status() && 'You do not have permission to resolve this pending action.' === ( $foreign_owner_data['error'] ?? '' ), 'Unrelated user did not reach pending-action owner denial.' );
+roadie_e2e_assert( 200 === $foreign_owner_response->get_status() && 'You do not have permission to resolve this pending action.' === ( $foreign_owner_data['result']['error'] ?? '' ), 'Unrelated user did not reach pending-action owner denial.' );
 
 // A stranger-owned action reaches the handler and fails the real artist object capability.
 switch_to_blog( (int) $sites['events'] );
@@ -389,7 +389,7 @@ $forbidden_artist_response = roadie_e2e_rest(
 	$stranger
 );
 $forbidden_artist_data = (array) ( $forbidden_artist_response->get_data()['data'] ?? array() );
-roadie_e2e_assert( 200 === $forbidden_artist_response->get_status() && 'Resolver cannot edit the fixture artist.' === ( $forbidden_artist_data['error'] ?? '' ), 'Unrelated user did not reach the real artist object-capability denial.' );
+roadie_e2e_assert( 200 === $forbidden_artist_response->get_status() && 'Resolver cannot edit the fixture artist.' === ( $forbidden_artist_data['result']['error'] ?? '' ), 'Unrelated user did not reach the real artist object-capability denial.' );
 roadie_e2e_assert( 1 === (int) get_site_option( 'roadie_e2e_pending_apply_count', 0 ), 'A denied pending action reached the deterministic apply handler.' );
 
 // Canonical artist mapping must use the stored term ID, not the deliberately different slug.
