@@ -204,6 +204,31 @@ function extrachill_roadie_canonical_team_access_bridge( $can_access, $principal
 add_filter( 'wp_agent_can_access_agent', 'extrachill_roadie_canonical_team_access_bridge', 10, 5 );
 
 /**
+ * Allow Roadie team members to reach owner-scoped pending-action resolution.
+ *
+ * Data Machine's resolver remains responsible for enforcing the stored action
+ * owner, origin workspace, and target-object capabilities.
+ *
+ * @since 0.20.0
+ *
+ * @param bool  $allowed Existing permission decision.
+ * @param array $input   Canonical pending-action input.
+ * @return bool
+ */
+function extrachill_roadie_pending_action_permission( bool $allowed, array $input ): bool {
+	unset( $input );
+
+	if ( $allowed ) {
+		return true;
+	}
+
+	$user_id = get_current_user_id();
+	// phpcs:ignore WordPress.WP.Capabilities.Unknown -- Custom cap granted by the extra_chill_team role.
+	return $user_id > 0 && user_can( $user_id, 'access_roadie' );
+}
+add_filter( 'agents_pending_action_permission', 'extrachill_roadie_pending_action_permission', 10, 2 );
+
+/**
  * Check whether the current user may see the Roadie chat surface at all.
  *
  * This is the additive Extra Chill entitlement path. Canonical Agents API

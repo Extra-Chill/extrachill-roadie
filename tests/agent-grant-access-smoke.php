@@ -106,6 +106,7 @@ namespace {
 	roadie_access_assert( ! extrachill_roadie_gate_widget_visibility( false, $roadie ), 'Unrelated user should not gain Roadie visibility.' );
 	roadie_access_assert( ! extrachill_roadie_team_access_bridge( false, 77, 101, 'viewer' ), 'Unrelated user should not gain agent access.' );
 	roadie_access_assert( ! extrachill_roadie_canonical_team_access_bridge( false, new \AgentsAPI\AI\WP_Agent_Execution_Principal( 101 ), 'roadie', 'viewer' ), 'Unrelated user should not gain canonical agent access.' );
+	roadie_access_assert( ! extrachill_roadie_pending_action_permission( false, array() ), 'Unrelated user should not resolve pending actions.' );
 
 	// A revoked grant reaches these filters as false/absent and must stay revoked.
 	roadie_access_assert( ! extrachill_roadie_gate_widget_visibility( false, $roadie ), 'Revoked grant should remain hidden.' );
@@ -122,6 +123,8 @@ namespace {
 	roadie_access_assert( ! extrachill_roadie_canonical_team_access_bridge( false, $team_principal, 'roadie', 'operator' ), 'Team capability must not satisfy canonical operator access.' );
 	roadie_access_assert( ! extrachill_roadie_canonical_team_access_bridge( false, $team_principal, 'other-agent', 'viewer' ), 'Team capability must not widen another canonical agent.' );
 	roadie_access_assert( extrachill_roadie_canonical_team_access_bridge( true, new \AgentsAPI\AI\WP_Agent_Execution_Principal( 100 ), 'roadie', 'admin' ), 'Canonical grants must survive the Roadie bridge.' );
+	roadie_access_assert( extrachill_roadie_pending_action_permission( false, array() ), 'Team capability should reach owner-scoped pending action resolution.' );
+	roadie_access_assert( extrachill_roadie_pending_action_permission( true, array() ), 'Existing pending action permission must survive the Roadie bridge.' );
 	$team_agents = extrachill_roadie_gate_widget_agent_list( array() );
 	roadie_access_assert( 'roadie' === ( $team_agents[0]['agent_slug'] ?? '' ), 'Team capability should append Roadie when the canonical list omits it.' );
 
