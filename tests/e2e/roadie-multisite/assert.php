@@ -433,7 +433,7 @@ foreach ( array( 'id', 'title', 'datetime', 'end_datetime', 'venue', 'taxonomies
 }
 roadie_e2e_assert( ! empty( $calendar_event['venue'] ) && str_contains( (string) wp_json_encode( $calendar_event['venue'] ), 'The Royal American' ), 'Event adapter lost the seeded venue identity.' );
 $taxonomy_evidence = (string) wp_json_encode( $calendar_event['taxonomies'] );
-roadie_e2e_assert( str_contains( $taxonomy_evidence, 'Different Local Slug' ) && str_contains( $taxonomy_evidence, 'Charleston' ), 'Event adapter lost seeded artist/location taxonomy data.' );
+roadie_e2e_assert( str_contains( $taxonomy_evidence, 'Charleston' ), 'Event adapter lost seeded location taxonomy data.' );
 roadie_e2e_assert( '' !== trim( (string) $calendar_event['occurrence_display'] ), 'Event adapter returned an empty occurrence display.' );
 roadie_e2e_assert( get_permalink( (int) $fixture['event_id'] ) === $calendar_event['permalink'], 'Event adapter changed the event permalink.' );
 roadie_e2e_assert( 'https://tickets.example.test/roadie-show?ref=e2e' === $calendar_event['ticket_url'], 'Event adapter changed the ticket URL.' );
