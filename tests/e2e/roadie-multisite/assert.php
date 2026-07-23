@@ -149,6 +149,21 @@ roadie_e2e_assert(
 	$access_diagnostics['access_roadie'] && $access_diagnostics['host_filter'] && $access_diagnostics['canonical_access'],
 	'Roadie team access did not reach the canonical agent gate: ' . wp_json_encode( $access_diagnostics )
 );
+$chat_permission_diagnostics = array();
+add_filter(
+	'agents_chat_permission',
+	static function ( bool $allowed, array $input ) use ( &$chat_permission_diagnostics ): bool {
+		$chat_permission_diagnostics = array(
+			'allowed'         => $allowed,
+			'current_user_id' => get_current_user_id(),
+			'agent'           => $input['agent'] ?? null,
+			'principal'       => $input['principal'] ?? null,
+		);
+		return $allowed;
+	},
+	PHP_INT_MAX,
+	2
+);
 $first_turn = roadie_e2e_rest(
 	'POST',
 	'/frontend-agent-chat/v1/chat',
@@ -162,7 +177,12 @@ $first_turn = roadie_e2e_rest(
 );
 roadie_e2e_assert(
 	200 === $first_turn->get_status(),
-	'FAC could not create the Roadie conversation through agents/chat: ' . wp_json_encode( $first_turn->get_data() )
+	'FAC could not create the Roadie conversation through agents/chat: ' . wp_json_encode(
+		array(
+			'response'   => $first_turn->get_data(),
+			'permission' => $chat_permission_diagnostics,
+		)
+	)
 );
 $first_data   = (array) ( $first_turn->get_data()['data'] ?? array() );
 $session_id  = (string) ( $first_data['session_id'] ?? '' );
