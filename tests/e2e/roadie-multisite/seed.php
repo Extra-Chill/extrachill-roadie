@@ -34,6 +34,19 @@ foreach ( $site_topology as $site_key => $expected_id ) {
 }
 update_site_option( 'roadie_e2e_sites', $sites );
 
+if ( ! class_exists( 'ActionScheduler_StoreSchema' ) || ! class_exists( 'ActionScheduler_LoggerSchema' ) ) {
+	throw new RuntimeException( 'Action Scheduler schema installers are unavailable.' );
+}
+foreach ( get_sites( array( 'number' => 0, 'fields' => 'ids' ) ) as $site_id ) {
+	switch_to_blog( (int) $site_id );
+	try {
+		( new ActionScheduler_StoreSchema() )->init();
+		( new ActionScheduler_LoggerSchema() )->init();
+	} finally {
+		restore_current_blog();
+	}
+}
+
 $owner_id = username_exists( 'roadie_owner' );
 if ( ! $owner_id ) {
 	$owner_id = wp_create_user( 'roadie_owner', 'roadie-owner-password', 'roadie-owner@example.test' );
