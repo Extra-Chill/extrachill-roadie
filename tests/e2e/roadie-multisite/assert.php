@@ -1,6 +1,7 @@
 <?php
 
 use AgentsAPI\AI\WP_Agent_Chat_Run_Control;
+use DataMachine\Core\Agents\AgentIdentityResolver;
 use DataMachine\Core\Database\Chat\ConversationStoreFactory;
 use DataMachine\Engine\AI\Actions\PendingActionHelper;
 
@@ -150,14 +151,35 @@ roadie_e2e_assert(
 	'Roadie team access did not reach the canonical agent gate: ' . wp_json_encode( $access_diagnostics )
 );
 $chat_permission_diagnostics = array();
+$canonical_filter_diagnostics = array();
+add_filter(
+	'wp_agent_can_access_agent',
+	static function ( $allowed, $principal, $agent_id, $minimum_role ) use ( &$canonical_filter_diagnostics ) {
+		$canonical_filter_diagnostics = array(
+			'allowed'        => (bool) $allowed,
+			'acting_user_id' => (int) ( $principal->acting_user_id ?? 0 ),
+			'agent_id'       => (string) $agent_id,
+			'minimum_role'   => (string) $minimum_role,
+		);
+		return $allowed;
+	},
+	PHP_INT_MAX,
+	4
+);
 add_filter(
 	'agents_chat_permission',
-	static function ( bool $allowed, array $input ) use ( &$chat_permission_diagnostics ): bool {
+	static function ( bool $allowed, array $input ) use ( &$chat_permission_diagnostics, &$canonical_filter_diagnostics ): bool {
+		$identity  = ( new AgentIdentityResolver() )->resolve_agent_identity( (string) ( $input['agent'] ?? '' ) );
+		$principal = WP_Agent_Access::get_current_principal();
 		$chat_permission_diagnostics = array(
-			'allowed'         => $allowed,
-			'current_user_id' => get_current_user_id(),
-			'agent'           => $input['agent'] ?? null,
-			'principal'       => $input['principal'] ?? null,
+			'allowed'                    => $allowed,
+			'current_user_id'            => get_current_user_id(),
+			'agent'                      => $input['agent'] ?? null,
+			'input_principal'            => $input['principal'] ?? null,
+			'current_principal_user_id'  => (int) ( $principal->acting_user_id ?? 0 ),
+			'resolved_agent_slug'        => $identity->agent_slug,
+			'canonical_access_at_filter' => WP_Agent_Access::can_current_principal_access_agent( $identity->agent_slug, WP_Agent_Access_Grant::ROLE_VIEWER ),
+			'canonical_filter'           => $canonical_filter_diagnostics,
 		);
 		return $allowed;
 	},
