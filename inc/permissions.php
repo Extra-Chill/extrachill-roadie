@@ -116,8 +116,9 @@ function extrachill_roadie_allowed_redirect_uris(): array {
 /**
  * Grant team members viewer access to the roadie agent.
  *
- * Hooks `datamachine_can_access_agent` (a generic Data Machine
- * filter) and elevates EC team members to roadie-agent access. This
+ * Hooks Data Machine's user-centric access filter and elevates EC team members
+ * to Roadie viewer access. The canonical Agents API equivalent is registered
+ * separately below so ability and Data Machine callers share one policy. This
  * is the platform-specific policy layer: Data Machine knows nothing
  * about Extra Chill team membership; extrachill-roadie is the
  * one-and-only place where EC-specific knowledge meets DM's generic
@@ -163,6 +164,44 @@ function extrachill_roadie_team_access_bridge( bool $can_access, int $agent_id, 
 	return $can_access;
 }
 add_filter( 'datamachine_can_access_agent', 'extrachill_roadie_team_access_bridge', 10, 4 );
+
+/**
+ * Grant the same viewer-only team entitlement through canonical Agents API.
+ *
+ * Agents API abilities, including `agents/chat`, authorize through
+ * `wp_agent_can_access_agent`. Roadie owns the Extra Chill team policy, so it
+ * must publish that policy at the canonical substrate seam rather than depend
+ * on a consumer-specific bridge being loaded.
+ *
+ * @since 0.20.0
+ *
+ * @param bool                                           $can_access   Store-derived access decision.
+ * @param \AgentsAPI\AI\WP_Agent_Execution_Principal      $principal    Canonical execution principal.
+ * @param string                                         $agent_id     Agent slug or numeric ID.
+ * @param string                                         $minimum_role Minimum role required.
+ * @param array                                          $context      Host authorization context.
+ * @return bool
+ */
+function extrachill_roadie_canonical_team_access_bridge( $can_access, $principal, $agent_id, $minimum_role, $context = array() ): bool {
+	unset( $context );
+
+	if ( $can_access ) {
+		return true;
+	}
+
+	if ( 'viewer' !== $minimum_role || ! $principal instanceof \AgentsAPI\AI\WP_Agent_Execution_Principal || $principal->acting_user_id <= 0 ) {
+		return false;
+	}
+
+	$is_roadie = EXTRACHILL_ROADIE_AGENT_SLUG === sanitize_title( (string) $agent_id );
+	if ( is_numeric( $agent_id ) ) {
+		$is_roadie = (int) $agent_id === extrachill_roadie_get_agent_id();
+	}
+
+	// phpcs:ignore WordPress.WP.Capabilities.Unknown -- Custom cap granted by the extra_chill_team role.
+	return $is_roadie && user_can( $principal->acting_user_id, 'access_roadie' );
+}
+add_filter( 'wp_agent_can_access_agent', 'extrachill_roadie_canonical_team_access_bridge', 10, 5 );
 
 /**
  * Check whether the current user may see the Roadie chat surface at all.
