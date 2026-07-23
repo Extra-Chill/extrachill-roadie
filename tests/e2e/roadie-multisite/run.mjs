@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { buildProvenance, buildSettings, readComponents } from './settings.mjs';
+
+const components = await readComponents();
+const wordpressVersion = process.env.ROADIE_E2E_WORDPRESS_VERSION;
+const phpVersion = process.env.ROADIE_E2E_PHP_VERSION;
+const homeboyBin = process.env.ROADIE_E2E_HOMEBOY_BIN || 'homeboy';
+const artifactRoot = path.resolve(process.env.ROADIE_E2E_ARTIFACT_ROOT || 'artifacts/roadie-multisite');
+const resultFile = path.join(artifactRoot, 'rig-result.json');
+const provenanceFile = path.join(artifactRoot, 'roadie-component-provenance.json');
+const stdoutFile = path.join(artifactRoot, 'homeboy-rig.stdout.log');
+const stderrFile = path.join(artifactRoot, 'homeboy-rig.stderr.log');
+const settings = buildSettings(components, wordpressVersion, phpVersion);
+const maxBuffer = 20 * 1024 * 1024;
+
+await mkdir(artifactRoot, { recursive: true });
+await writeFile(provenanceFile, `${JSON.stringify(buildProvenance(components, wordpressVersion, phpVersion), null, 2)}\n`);
+
+const result = spawnSync(homeboyBin, ['--placement', 'local', 'rig', 'up', 'wordpress-multisite-e2e'], {
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    HOMEBOY_ARTIFACT_ROOT: artifactRoot,
+    HOMEBOY_NETWORK_E2E_RESULT_FILE: resultFile,
+    HOMEBOY_SETTINGS_JSON: JSON.stringify(settings),
+  },
+  stdio: 'pipe',
+  maxBuffer,
+});
+
+const stdout = result.stdout || '';
+const stderr = result.stderr || '';
+await Promise.all([writeFile(stdoutFile, stdout), writeFile(stderrFile, stderr)]);
+process.stdout.write(stdout);
+process.stderr.write(stderr);
+
+const retained = { artifactRoot, provenanceFile, resultFile, stdoutFile, stderrFile };
+console.log(JSON.stringify(retained, null, 2));
+
+if (result.error) {
+  throw result.error;
+}
+if (result.status !== 0) {
+  throw new Error(`Homeboy multisite rig exited with status ${result.status}.`);
+}

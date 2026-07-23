@@ -9,6 +9,12 @@
 
 declare(strict_types=1);
 
+namespace AgentsAPI\AI {
+	class WP_Agent_Execution_Principal {
+		public function __construct( public int $acting_user_id ) {}
+	}
+}
+
 namespace DataMachine\Core\Database\Agents {
 	class Agents {
 		public function get_by_slug( string $slug ): ?array {
@@ -99,6 +105,8 @@ namespace {
 	roadie_access_login( 101 );
 	roadie_access_assert( ! extrachill_roadie_gate_widget_visibility( false, $roadie ), 'Unrelated user should not gain Roadie visibility.' );
 	roadie_access_assert( ! extrachill_roadie_team_access_bridge( false, 77, 101, 'viewer' ), 'Unrelated user should not gain agent access.' );
+	roadie_access_assert( ! extrachill_roadie_canonical_team_access_bridge( false, new \AgentsAPI\AI\WP_Agent_Execution_Principal( 101 ), 'roadie', 'viewer' ), 'Unrelated user should not gain canonical agent access.' );
+	roadie_access_assert( ! extrachill_roadie_pending_action_permission( false, array() ), 'Unrelated user should not resolve pending actions.' );
 
 	// A revoked grant reaches these filters as false/absent and must stay revoked.
 	roadie_access_assert( ! extrachill_roadie_gate_widget_visibility( false, $roadie ), 'Revoked grant should remain hidden.' );
@@ -109,6 +117,14 @@ namespace {
 	roadie_access_assert( extrachill_roadie_team_access_bridge( false, 77, 102, 'viewer' ), 'Team capability should add agent access.' );
 	roadie_access_assert( ! extrachill_roadie_team_access_bridge( false, 77, 102, 'operator' ), 'Team capability must not satisfy the canonical operator role.' );
 	roadie_access_assert( ! extrachill_roadie_team_access_bridge( false, 77, 102, 'admin' ), 'Team capability must not satisfy the canonical admin role.' );
+	$team_principal = new \AgentsAPI\AI\WP_Agent_Execution_Principal( 102 );
+	roadie_access_assert( extrachill_roadie_canonical_team_access_bridge( false, $team_principal, 'roadie', 'viewer' ), 'Team capability should add canonical Roadie viewer access.' );
+	roadie_access_assert( extrachill_roadie_canonical_team_access_bridge( false, $team_principal, '77', 'viewer' ), 'Team capability should support canonical numeric Roadie identity.' );
+	roadie_access_assert( ! extrachill_roadie_canonical_team_access_bridge( false, $team_principal, 'roadie', 'operator' ), 'Team capability must not satisfy canonical operator access.' );
+	roadie_access_assert( ! extrachill_roadie_canonical_team_access_bridge( false, $team_principal, 'other-agent', 'viewer' ), 'Team capability must not widen another canonical agent.' );
+	roadie_access_assert( extrachill_roadie_canonical_team_access_bridge( true, new \AgentsAPI\AI\WP_Agent_Execution_Principal( 100 ), 'roadie', 'admin' ), 'Canonical grants must survive the Roadie bridge.' );
+	roadie_access_assert( extrachill_roadie_pending_action_permission( false, array() ), 'Team capability should reach owner-scoped pending action resolution.' );
+	roadie_access_assert( extrachill_roadie_pending_action_permission( true, array() ), 'Existing pending action permission must survive the Roadie bridge.' );
 	$team_agents = extrachill_roadie_gate_widget_agent_list( array() );
 	roadie_access_assert( 'roadie' === ( $team_agents[0]['agent_slug'] ?? '' ), 'Team capability should append Roadie when the canonical list omits it.' );
 
@@ -125,5 +141,5 @@ namespace {
 	roadie_access_assert( extrachill_roadie_gate_widget_visibility( true, $other ), 'Other-agent visibility decisions should remain untouched.' );
 	roadie_access_assert( ! extrachill_roadie_gate_widget_visibility( false, $other ), 'Other-agent denials should remain untouched.' );
 
-	echo "Roadie agent grant access smoke passed (18 assertions).\n";
+	echo "Roadie agent grant access smoke passed (24 assertions).\n";
 }

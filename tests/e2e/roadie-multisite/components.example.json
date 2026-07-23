@@ -1,0 +1,50 @@
+{
+  "agents-api": {
+    "path": "/absolute/path/to/agents-api",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "data-machine": {
+    "path": "/absolute/path/to/data-machine",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "frontend-agent-chat": {
+    "path": "/absolute/path/to/frontend-agent-chat",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "extrachill-network": {
+    "path": "/absolute/path/to/extrachill-network",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "extrachill-api": {
+    "path": "/absolute/path/to/extrachill-api",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "extrachill-users": {
+    "path": "/absolute/path/to/extrachill-users",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "extrachill-artist-platform": {
+    "path": "/absolute/path/to/extrachill-artist-platform",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "data-machine-events": {
+    "path": "/absolute/path/to/data-machine-events",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "extrachill-events": {
+    "path": "/absolute/path/to/extrachill-events",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "extrachill-analytics": {
+    "path": "/absolute/path/to/extrachill-analytics",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "extrachill": {
+    "path": "/absolute/path/to/extrachill-theme",
+    "version": "0000000000000000000000000000000000000000"
+  },
+  "extrachill-roadie": {
+    "path": "/absolute/path/to/extrachill-roadie",
+    "version": "0000000000000000000000000000000000000000"
+  }
+}
