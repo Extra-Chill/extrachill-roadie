@@ -19,6 +19,7 @@
     {"kind": "expect", "selector": "[data-frontend-agent-chat]", "state": "attached"},
     {"kind": "click", "selector": ".frontend-agent-chat__fab"},
     {"kind": "expect", "selector": ".frontend-agent-chat__session-select", "state": "visible"},
+    {"kind": "expect", "selector": ".frontend-agent-chat__session-select option:not([value=''])", "state": "attached"},
     {"kind": "evaluate", "expression": "(() => { const select = document.querySelector('.frontend-agent-chat__session-select'); const option = Array.from(select?.options ?? []).find((item) => item.value); if (!select || !option) return false; select.value = option.value; select.dispatchEvent(new Event('change', { bubbles: true })); return true; })()", "assert": true},
     {"kind": "waitFor", "selector": "text=Deterministic Roadie initial reply.", "timeout": "20s"},
     {"kind": "fill", "selector": ".agenttic-embedded__input textarea", "value": "Second deterministic Roadie message."},
