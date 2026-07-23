@@ -14,6 +14,7 @@ const provenanceFile = path.join(artifactRoot, 'roadie-component-provenance.json
 const stdoutFile = path.join(artifactRoot, 'homeboy-rig.stdout.log');
 const stderrFile = path.join(artifactRoot, 'homeboy-rig.stderr.log');
 const settings = buildSettings(components, wordpressVersion, phpVersion);
+const maxBuffer = 20 * 1024 * 1024;
 
 await mkdir(artifactRoot, { recursive: true });
 await writeFile(provenanceFile, `${JSON.stringify(buildProvenance(components, wordpressVersion, phpVersion), null, 2)}\n`);
@@ -27,6 +28,7 @@ const result = spawnSync(homeboyBin, ['--placement', 'local', 'rig', 'up', 'word
     HOMEBOY_SETTINGS_JSON: JSON.stringify(settings),
   },
   stdio: 'pipe',
+  maxBuffer,
 });
 
 const stdout = result.stdout || '';
