@@ -7,6 +7,7 @@ import path from 'node:path';
 import { buildProvenance, buildSettings, componentFiles, readComponents, root, themeFiles } from './settings.mjs';
 
 const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'roadie-multisite-validate-'));
+const homeboyBin = process.env.ROADIE_E2E_HOMEBOY_BIN || 'homeboy';
 
 try {
   const manifest = {};
@@ -118,7 +119,7 @@ try {
     assert.doesNotMatch(source, /\/var\/(?:lib\/datamachine\/workspace|www)\//);
   }
 
-  const rigCheck = run('homeboy', ['--placement', 'local', 'rig', 'check', 'wordpress-multisite-e2e'], {
+  const rigCheck = run(homeboyBin, ['--placement', 'local', 'rig', 'check', 'wordpress-multisite-e2e'], {
     HOMEBOY_ARTIFACT_ROOT: path.join(temporaryRoot, 'artifacts'),
     HOMEBOY_NETWORK_E2E_RESULT_FILE: path.join(temporaryRoot, 'rig-result.json'),
     HOMEBOY_SETTINGS_JSON: JSON.stringify(settings),

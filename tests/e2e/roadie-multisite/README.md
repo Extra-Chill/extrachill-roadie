@@ -55,7 +55,7 @@ Homeboy stdout/stderr. When the generic rig completes, it also retains its resul
 envelope and WP Codebox evidence bundle:
 
 ```bash
-ROADIE_E2E_COMPONENTS_FILE=/absolute/path/to/components.json ROADIE_E2E_WORDPRESS_VERSION=nightly ROADIE_E2E_PHP_VERSION=8.4 ROADIE_E2E_ARTIFACT_ROOT="$PWD/artifacts/roadie-multisite" node tests/e2e/roadie-multisite/run.mjs
+ROADIE_E2E_HOMEBOY_BIN=/absolute/path/to/homeboy ROADIE_E2E_COMPONENTS_FILE=/absolute/path/to/components.json ROADIE_E2E_WORDPRESS_VERSION=nightly ROADIE_E2E_PHP_VERSION=8.4 ROADIE_E2E_ARTIFACT_ROOT="$PWD/artifacts/roadie-multisite" node tests/e2e/roadie-multisite/run.mjs
 ```
 
 The command prints all retained paths. Browser scenarios use real network

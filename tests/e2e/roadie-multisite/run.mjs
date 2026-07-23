@@ -7,6 +7,7 @@ import { buildProvenance, buildSettings, readComponents } from './settings.mjs';
 const components = await readComponents();
 const wordpressVersion = process.env.ROADIE_E2E_WORDPRESS_VERSION;
 const phpVersion = process.env.ROADIE_E2E_PHP_VERSION;
+const homeboyBin = process.env.ROADIE_E2E_HOMEBOY_BIN || 'homeboy';
 const artifactRoot = path.resolve(process.env.ROADIE_E2E_ARTIFACT_ROOT || 'artifacts/roadie-multisite');
 const resultFile = path.join(artifactRoot, 'rig-result.json');
 const provenanceFile = path.join(artifactRoot, 'roadie-component-provenance.json');
@@ -17,7 +18,7 @@ const settings = buildSettings(components, wordpressVersion, phpVersion);
 await mkdir(artifactRoot, { recursive: true });
 await writeFile(provenanceFile, `${JSON.stringify(buildProvenance(components, wordpressVersion, phpVersion), null, 2)}\n`);
 
-const result = spawnSync('homeboy', ['--placement', 'local', 'rig', 'up', 'wordpress-multisite-e2e'], {
+const result = spawnSync(homeboyBin, ['--placement', 'local', 'rig', 'up', 'wordpress-multisite-e2e'], {
   encoding: 'utf8',
   env: {
     ...process.env,
