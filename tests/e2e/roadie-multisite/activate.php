@@ -27,3 +27,8 @@ foreach ( $plugins as $plugin ) {
 		throw new RuntimeException( $plugin . ': ' . $result->get_error_message() );
 	}
 }
+
+if ( ! function_exists( 'extrachill_analytics_events_create_table' ) ) {
+	throw new RuntimeException( 'Extra Chill Analytics did not load its events table installer.' );
+}
+extrachill_analytics_events_create_table();
