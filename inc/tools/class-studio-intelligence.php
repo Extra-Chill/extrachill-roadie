@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class ECRoadie_StudioIntelligence extends ECRoadie_PlatformTool {
 
 	protected string $site_key  = 'studio';
-	protected string $tool_slug = 'studio_intelligence';
+	protected string $tool_slug = 'extrachill_intelligence';
 
 	private const SEARCH_ROUTE = '/intelligence/v1/search';
 	private const READ_ROUTE   = '/intelligence/v1/read';

@@ -121,7 +121,7 @@ $tools = array(
 	'file_feature_request'  => ( new ECRoadie_FileFeatureRequest() )->getToolDefinition(),
 	'inspect_code'          => ( new ECRoadie_InspectCode() )->getToolDefinition(),
 	'inspect_page'          => ( new ECRoadie_InspectPage() )->getToolDefinition(),
-	'studio_intelligence'   => ( new ECRoadie_StudioIntelligence() )->getToolDefinition(),
+	'extrachill_intelligence'   => ( new ECRoadie_StudioIntelligence() )->getToolDefinition(),
 );
 
 foreach ( $tools as $tool_name => $definition ) {

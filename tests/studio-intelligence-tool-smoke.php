@@ -77,7 +77,7 @@ $GLOBALS['extrachill_roadie_test_state']['caps_by_user']  = array(
 
 $tool = new ECRoadie_StudioIntelligence();
 
-$registration = $GLOBALS['roadie_intelligence_registrations']['studio_intelligence'] ?? array();
+$registration = $GLOBALS['roadie_intelligence_registrations']['extrachill_intelligence'] ?? array();
 roadie_test_assert( array( 'roadie' ) === ( $registration['modes'] ?? null ), 'Studio Intelligence must register only for Roadie mode.' );
 roadie_test_assert( 'authenticated' === ( $registration['meta']['access_level'] ?? '' ), 'Studio Intelligence must link authenticated access metadata.' );
 roadie_test_assert( ! isset( $registration['meta']['ability'] ), 'Off-Studio discovery must not require a locally registered Intelligence ability.' );
