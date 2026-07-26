@@ -107,6 +107,7 @@ require_once dirname( __DIR__ ) . '/inc/tools/class-apply-code-change.php';
 require_once dirname( __DIR__ ) . '/inc/tools/class-file-feature-request.php';
 require_once dirname( __DIR__ ) . '/inc/tools/class-inspect-code.php';
 require_once dirname( __DIR__ ) . '/inc/tools/class-inspect-page.php';
+require_once dirname( __DIR__ ) . '/inc/tools/class-studio-intelligence.php';
 require_once rtrim( $data_machine_dir, '/' ) . '/inc/Engine/AI/Tools/ToolExecutor.php';
 
 $tools = array(
@@ -120,6 +121,7 @@ $tools = array(
 	'file_feature_request'  => ( new ECRoadie_FileFeatureRequest() )->getToolDefinition(),
 	'inspect_code'          => ( new ECRoadie_InspectCode() )->getToolDefinition(),
 	'inspect_page'          => ( new ECRoadie_InspectPage() )->getToolDefinition(),
+	'studio_intelligence'   => ( new ECRoadie_StudioIntelligence() )->getToolDefinition(),
 );
 
 foreach ( $tools as $tool_name => $definition ) {

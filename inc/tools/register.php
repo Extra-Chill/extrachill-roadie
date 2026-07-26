@@ -45,6 +45,7 @@ add_action(
 		require_once __DIR__ . '/class-inspect-page.php';
 		require_once __DIR__ . '/class-present-question.php';
 		require_once __DIR__ . '/class-search-content.php';
+		require_once __DIR__ . '/class-studio-intelligence.php';
 
 		new ECRoadie_ManageArtistProfile();
 		new ECRoadie_ManageLinkPage();
@@ -58,6 +59,7 @@ add_action(
 		new ECRoadie_InspectPage();
 		new ECRoadie_PresentQuestion();
 		new ECRoadie_SearchContent();
+		new ECRoadie_StudioIntelligence();
 	}
 );
 
