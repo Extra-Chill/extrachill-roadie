@@ -195,7 +195,7 @@ function extrachill_roadie_canonical_team_access_bridge( $can_access, $principal
 
 	$is_roadie = EXTRACHILL_ROADIE_AGENT_SLUG === sanitize_title( (string) $agent_id );
 	if ( is_numeric( $agent_id ) ) {
-		$is_roadie = (int) $agent_id === extrachill_roadie_get_agent_id();
+		$is_roadie = extrachill_roadie_get_agent_id() === (int) $agent_id;
 	}
 
 	// phpcs:ignore WordPress.WP.Capabilities.Unknown -- Custom cap granted by the extra_chill_team role.

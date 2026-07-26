@@ -191,7 +191,7 @@ function extrachill_roadie_pending_action_origin_is_valid( string $workspace_typ
 	}
 
 	$site_url = untrailingslashit( (string) get_home_url( $blog_id, '/' ) );
-	return '' !== $site_url && $site_url === untrailingslashit( $workspace_id );
+	return '' !== $site_url && untrailingslashit( $workspace_id ) === $site_url;
 }
 
 /**
