@@ -1,0 +1,14 @@
+{
+  "schema": "homeboy/test-manifest/v1",
+  "tests": {
+    "tests/studio-intelligence-tool-smoke.php": {
+      "environment": "standalone-php"
+    },
+    "tests/tool-executor-caller-binding-smoke.php": {
+      "environment": "standalone-php"
+    },
+    "tests/tool-mode-scope-smoke.php": {
+      "environment": "standalone-php"
+    }
+  }
+}
