@@ -22,6 +22,7 @@ $tool_files = array(
 	'class-inspect-page.php'          => 'inspect_page',
 	'class-present-question.php'      => 'present_question',
 	'class-search-content.php'        => 'search_content',
+	'class-studio-intelligence.php'   => 'studio_intelligence',
 );
 
 $registrations = array();
