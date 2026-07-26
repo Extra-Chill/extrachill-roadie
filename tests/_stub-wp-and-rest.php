@@ -103,7 +103,7 @@ function sprintf_safe( string $format, ...$args ): string {
 }
 
 function ec_get_blog_id( string $key ): ?int {
-	$map = array( 'main' => 1, 'community' => 2, 'artist' => 3, 'studio' => 12 );
+	$map = array( 'main' => 1, 'community' => 2, 'artist' => 3 );
 	return $map[ $key ] ?? null;
 }
 

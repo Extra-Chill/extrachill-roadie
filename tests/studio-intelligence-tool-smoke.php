@@ -2,7 +2,7 @@
 /**
  * Contract coverage for the private Studio Intelligence Roadie adapter.
  *
- * Run with: php tests/studio-intelligence-tool.php
+ * Run with: php tests/studio-intelligence-tool-smoke.php
  *
  * @package ExtraChillRoadie\Tests
  */
