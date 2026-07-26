@@ -2,6 +2,19 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.20.0] - 2026-07-26
+
+### Added
+- expose Studio Intelligence reads to Roadie
+
+### Changed
+- exercise Roadie multisite artist journey
+
+### Fixed
+- clear release lint baseline
+- make Roadie sessions network-consistent
+- align Roadie access with canonical grants
+
 ## [0.19.0] - 2026-07-12
 
 ### Added
