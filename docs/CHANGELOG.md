@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.20.1] - 2026-07-26
+
+### Changed
+- rename Roadie Intelligence tool
+
 ## [0.20.0] - 2026-07-26
 
 ### Added
