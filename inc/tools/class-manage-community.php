@@ -115,6 +115,12 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		if ( is_wp_error( $venue_scope ) ) {
 			return $this->buildErrorResponse( $venue_scope->get_error_message(), 'manage_community' );
 		}
+		if ( $venue_scope && isset( $parameters['user_id'] ) && (int) $parameters['user_id'] !== (int) $venue_scope['owner_user_id'] ) {
+			return $this->buildErrorResponse(
+				'Permission denied: venue Roadie actions cannot act on behalf of another user.',
+				'manage_community'
+			);
+		}
 
 		// Read-only actions that don't need a user context.
 		$public_actions = array( 'list_forums', 'list_topics', 'get_topic' );
@@ -261,7 +267,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 			$body['public_voice'] = $venue_scope['public_voice'];
 		}
 		$request = fn(): array => $this->rest_request( 'POST', '/wp-abilities/v1/abilities/extrachill/community-create-topic/run', array(
-			'body'    => $body,
+			'body'    => array( 'input' => $body ),
 			'user_id' => $acting_user_id,
 		) );
 		$result = $venue_scope
@@ -302,7 +308,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		}
 
 		$request = fn(): array => $this->rest_request( 'POST', '/wp-abilities/v1/abilities/extrachill/community-create-reply/run', array(
-			'body'    => $body,
+			'body'    => array( 'input' => $body ),
 			'user_id' => $acting_user_id,
 		) );
 		$result = $venue_scope

@@ -23,7 +23,6 @@ function extrachill_roadie_register_venue_agent(): void {
 		array(
 			'label'          => __( 'Venue Roadie', 'extrachill-roadie' ),
 			'description'    => __( 'A reusable venue-scoped Extra Chill operator.', 'extrachill-roadie' ),
-			'owner_resolver' => static fn(): int => 0,
 			'default_config' => array(
 				'default_model'    => 'gpt-5.5',
 				'default_provider' => 'openai',
@@ -37,8 +36,9 @@ function extrachill_roadie_register_venue_agent(): void {
 				'SOUL.md' => EXTRACHILL_ROADIE_PLUGIN_DIR . 'bundles/roadie/memory/agent/SOUL.md',
 			),
 			'meta'           => array(
-				'source_plugin' => 'extrachill-roadie',
-				'source_type'   => 'plugin',
+				'source_plugin'                       => 'extrachill-roadie',
+				'source_type'                         => 'plugin',
+				'datamachine_default_materialization' => false,
 			),
 		)
 	);

@@ -46,7 +46,7 @@ function sanitize_text_field( $value ): string { return trim( strip_tags( (strin
 function sanitize_textarea_field( $value ): string { return sanitize_text_field( $value ); }
 function esc_url_raw( $value ): string { return (string) $value; }
 function is_wp_error( $value ): bool { return $value instanceof WP_Error; }
-function user_can( $user, string $capability ): bool { return (int) $user === 7 && 'access_roadie' === $capability; }
+function user_can( $user, string $capability ): bool { return (int) $user === 7 && in_array( $capability, array( 'access_roadie', 'manage_options' ), true ); }
 function get_current_network_id(): int { return 1; }
 function untrailingslashit( string $value ): string { return rtrim( $value, '/' ); }
 function get_bloginfo( string $key ): string { unset( $key ); return 'Extra Chill'; }
@@ -103,7 +103,8 @@ require_once dirname( __DIR__ ) . '/inc/frontend-chat.php';
 
 extrachill_roadie_register_venue_agent();
 venue_assert( 'roadie-venue' === $GLOBALS['_venue_registered_agent']['slug'], 'Reusable venue definition must register once.' );
-venue_assert( 0 === $GLOBALS['_venue_registered_agent']['args']['owner_resolver'](), 'Definition must not create a default singleton instance.' );
+venue_assert( false === $GLOBALS['_venue_registered_agent']['args']['meta']['datamachine_default_materialization'], 'Definition must opt out of default Data Machine materialization.' );
+venue_assert( ! isset( $GLOBALS['_venue_registered_agent']['args']['owner_resolver'] ), 'Definition-only registration must not rely on an invalid zero owner.' );
 
 $voices = static fn( array $ids ): array => array( 'voices' => array_map( static fn( int $id ): array => array(
 	'reference' => 'venue:' . $id, 'term_id' => $id, 'name' => 'Venue ' . $id, 'slug' => 'venue-' . $id,
@@ -154,12 +155,28 @@ $created = $tool->handle_tool_call( array(
 ) );
 $community_call = $GLOBALS['_venue_cross_calls'][1];
 venue_assert( true === $created['success'], 'Authorized venue Community write must succeed.' );
-venue_assert( '/wp-abilities/v1/abilities/extrachill/community-create-topic/run' === $community_call['path'], 'Community writes must use the existing ability contract.' );
-venue_assert( 7 === $community_call['args']['user_id'] && ! isset( $community_call['args']['body']['user_id'] ), 'Trusted human must remain the caller and author.' );
-venue_assert( 'venue:55' === $community_call['args']['body']['public_voice'], 'Model input must not cross the identity-bound venue scope.' );
+venue_assert( '/wp-abilities/v1/abilities/extrachill/community-create-topic/run' === $community_call['path'], 'Community writes must use the standard REST ability route.' );
+venue_assert( 7 === $community_call['args']['user_id'] && ! isset( $community_call['args']['body']['input']['user_id'] ), 'Trusted human must remain the caller and author.' );
+venue_assert( 'venue:55' === $community_call['args']['body']['input']['public_voice'], 'Model input must not cross the identity-bound venue scope.' );
 venue_assert( 'venue:55' === $created['data']['public_voice']['reference'], 'Nullable Community public_voice envelope must be consumed.' );
 $principal = $GLOBALS['_venue_principals'][0];
 venue_assert( 7 === $principal->acting_user_id && (string) $first['agent_id'] === $principal->effective_agent_id, 'Community must see human/effective-agent separation for disclosure.' );
+
+// Both users manage venue 55, but neither venue instance may write as the other owner.
+$GLOBALS['_venue_cross_calls'] = array();
+$admin_override = $tool->handle_tool_call( array(
+	'action' => 'create_topic', 'calling_user_id' => 7, 'effective_agent_id' => $first['agent_id'], 'user_id' => 8,
+	'forum_id' => 10, 'title' => 'Spoofed venue update', 'content' => 'Denied.',
+) );
+venue_assert( false === $admin_override['success'] && 1 === count( $GLOBALS['_venue_cross_calls'] ) && 'events' === $GLOBALS['_venue_cross_calls'][0]['site'], 'Venue mode must reject an administrator cross-user override before Community dispatch.' );
+$GLOBALS['_venue_user'] = 8;
+$GLOBALS['_venue_cross_calls'] = array();
+$manager_override = $tool->handle_tool_call( array(
+	'action' => 'create_reply', 'calling_user_id' => 8, 'effective_agent_id' => $owner_b['agent_id'], 'user_id' => 7,
+	'topic_id' => 501, 'content' => 'Denied.',
+) );
+venue_assert( false === $manager_override['success'] && 1 === count( $GLOBALS['_venue_cross_calls'] ) && 'events' === $GLOBALS['_venue_cross_calls'][0]['site'], 'A second valid venue manager must not target the first manager as author.' );
+$GLOBALS['_venue_user'] = 7;
 
 $GLOBALS['_venue_voices'] = $voices( array() );
 $GLOBALS['_venue_cross_calls'] = array();
@@ -184,6 +201,14 @@ $GLOBALS['_venue_cross_calls'] = array();
 $singleton = $tool->handle_tool_call( array(
 	'action' => 'create_topic', 'calling_user_id' => 7, 'effective_agent_id' => $singleton_id, 'forum_id' => 10, 'title' => 'Human', 'content' => 'Post.',
 ) );
-venue_assert( true === $singleton['success'] && ! isset( $GLOBALS['_venue_cross_calls'][0]['args']['body']['public_voice'] ), 'Singleton Roadie writes must remain unvoiced and compatible.' );
+venue_assert( true === $singleton['success'] && ! isset( $GLOBALS['_venue_cross_calls'][0]['args']['body']['input']['public_voice'] ), 'Singleton Roadie writes must remain unvoiced and compatible.' );
+
+$GLOBALS['_venue_community'] = array( 'topic_id' => 503, 'author_id' => 8, 'public_voice' => null );
+$GLOBALS['_venue_cross_calls'] = array();
+$legacy_override = $tool->handle_tool_call( array(
+	'action' => 'create_topic', 'calling_user_id' => 7, 'effective_agent_id' => $singleton_id, 'user_id' => 8,
+	'forum_id' => 10, 'title' => 'Admin post', 'content' => 'Legacy override.',
+) );
+venue_assert( true === $legacy_override['success'] && 8 === $GLOBALS['_venue_cross_calls'][0]['args']['user_id'], 'Singleton Roadie must preserve its legacy administrator override.' );
 
 echo "Roadie venue agent instances smoke passed.\n";
