@@ -135,6 +135,13 @@ foreach ( $tools as $tool_name => $definition ) {
 	roadie_test_assert( ! in_array( 'calling_user_id', $model_schema['required'] ?? array(), true ), $tool_name . ' must hide calling_user_id from model requirements.' );
 }
 
+$venue_binding = $tools['manage_community']['parameter_bindings']['effective_agent_id'] ?? array();
+roadie_test_assert( 'caller_context' === ( $venue_binding['source'] ?? '' ), 'Community effective agent must bind from trusted caller context.' );
+roadie_test_assert( 'agent_id' === ( $venue_binding['path'] ?? '' ), 'Community effective agent must bind from canonical runtime agent_id.' );
+roadie_test_assert( true === ( $venue_binding['authoritative'] ?? false ), 'Community effective agent binding must be authoritative.' );
+$community_model_schema = AgentsAPI\AI\Tools\WP_Agent_Tool_Parameters::modelParameterSchema( $tools['manage_community'] );
+roadie_test_assert( ! array_key_exists( 'effective_agent_id', $community_model_schema['properties'] ?? array() ), 'The model must not select a materialized venue identity.' );
+
 $provider_request = new AgentsAPI\AI\WP_Agent_Provider_Turn_Request(
 	array( array( 'role' => 'user', 'content' => 'Inspect caller-bound tools.' ) ),
 	$tools
@@ -142,6 +149,9 @@ $provider_request = new AgentsAPI\AI\WP_Agent_Provider_Turn_Request(
 foreach ( $provider_request->toolDeclarations() as $tool_name => $definition ) {
 	$provider_schema = $definition['parameters'] ?? array();
 	roadie_test_assert( ! array_key_exists( 'calling_user_id', $provider_schema['properties'] ?? array() ), $tool_name . ' provider declaration must not expose calling_user_id.' );
+	if ( 'manage_community' === $tool_name ) {
+		roadie_test_assert( ! array_key_exists( 'effective_agent_id', $provider_schema['properties'] ?? array() ), 'Provider declaration must not expose the materialized venue identity.' );
+	}
 }
 
 $tool_name  = 'propose_code_change';

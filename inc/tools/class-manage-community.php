@@ -44,6 +44,11 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 					'path'          => 'calling_user_id',
 					'authoritative' => true,
 				),
+				'effective_agent_id' => array(
+					'source'        => 'caller_context',
+					'path'          => 'agent_id',
+					'authoritative' => true,
+				),
 			),
 			'description'        => 'Interact with the Extra Chill community forums. Browse forums, list and read topics, create new topics, post replies, and manage notifications. Forum posts and replies are attributed to the calling user by default; admins may override via user_id. All actions run on community.extrachill.com.',
 			'parameters'         => array(
@@ -58,6 +63,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 						'description' => 'Target user ID for write actions (create_topic, create_reply) and notification reads. Optional. Defaults to the calling user. Admin-only override.',
 					),
 					'calling_user_id' => array( 'type' => 'integer' ),
+					'effective_agent_id' => array( 'type' => 'integer' ),
 					'forum_id'        => array(
 						'type'        => 'integer',
 						'description' => 'Forum ID. Required for "create_topic". Optional filter for "list_topics".',
@@ -102,6 +108,19 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 
 	public function handle_tool_call( array $parameters, array $tool_def = array() ): array {
 		$action = $parameters['action'] ?? '';
+		$calling_user_id = extrachill_roadie_resolve_acting_caller( $parameters );
+		$venue_scope = function_exists( 'extrachill_roadie_resolve_venue_agent_scope' )
+			? extrachill_roadie_resolve_venue_agent_scope( (int) ( $parameters['effective_agent_id'] ?? 0 ), $calling_user_id )
+			: null;
+		if ( is_wp_error( $venue_scope ) ) {
+			return $this->buildErrorResponse( $venue_scope->get_error_message(), 'manage_community' );
+		}
+		if ( $venue_scope && isset( $parameters['user_id'] ) && (int) $parameters['user_id'] !== (int) $venue_scope['owner_user_id'] ) {
+			return $this->buildErrorResponse(
+				'Permission denied: venue Roadie actions cannot act on behalf of another user.',
+				'manage_community'
+			);
+		}
 
 		// Read-only actions that don't need a user context.
 		$public_actions = array( 'list_forums', 'list_topics', 'get_topic' );
@@ -127,9 +146,9 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 
 		switch ( $action ) {
 			case 'create_topic':
-				return $this->handle_create_topic( $parameters, $acting_user_id );
+				return $this->handle_create_topic( $parameters, $acting_user_id, $venue_scope );
 			case 'create_reply':
-				return $this->handle_create_reply( $parameters, $acting_user_id );
+				return $this->handle_create_reply( $parameters, $acting_user_id, $venue_scope );
 			case 'get_notifications':
 				return $this->handle_get_notifications( $parameters, $acting_user_id );
 			case 'mark_notifications_read':
@@ -200,7 +219,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 	/**
 	 * Create a new forum topic.
 	 */
-	private function handle_create_topic( array $parameters, int $acting_user_id ): array {
+	private function handle_create_topic( array $parameters, int $acting_user_id, ?array $venue_scope = null ): array {
 		$forum_id = $parameters['forum_id'] ?? null;
 		$title    = $parameters['title'] ?? '';
 		$content  = $parameters['content'] ?? '';
@@ -239,14 +258,21 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 			return $this->buildErrorResponse( 'content is required to create a topic.', 'manage_community' );
 		}
 
-		$result = $this->rest_request( 'POST', '/community/topics', array(
-			'body'    => array(
+		$body = array(
 				'forum_id' => (int) $forum_id,
 				'title'    => $title,
 				'content'  => $content,
-			),
+		);
+		if ( $venue_scope ) {
+			$body['public_voice'] = $venue_scope['public_voice'];
+		}
+		$request = fn(): array => $this->rest_request( 'POST', '/wp-abilities/v1/abilities/extrachill/community-create-topic/run', array(
+			'body'    => array( 'input' => $body ),
 			'user_id' => $acting_user_id,
 		) );
+		$result = $venue_scope
+			? extrachill_roadie_with_venue_agent_principal( $acting_user_id, (int) $venue_scope['agent_id'], $request )
+			: $request();
 
 		if ( $result['success'] ?? false ) {
 			$result['message'] = 'Topic created successfully.';
@@ -258,7 +284,7 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 	/**
 	 * Post a reply to a topic.
 	 */
-	private function handle_create_reply( array $parameters, int $acting_user_id ): array {
+	private function handle_create_reply( array $parameters, int $acting_user_id, ?array $venue_scope = null ): array {
 		$topic_id = $parameters['topic_id'] ?? null;
 		$content  = $parameters['content'] ?? '';
 
@@ -277,11 +303,17 @@ class ECRoadie_ManageCommunity extends ECRoadie_PlatformTool {
 		if ( ! empty( $parameters['reply_to'] ) ) {
 			$body['reply_to'] = (int) $parameters['reply_to'];
 		}
+		if ( $venue_scope ) {
+			$body['public_voice'] = $venue_scope['public_voice'];
+		}
 
-		$result = $this->rest_request( 'POST', '/community/replies', array(
-			'body'    => $body,
+		$request = fn(): array => $this->rest_request( 'POST', '/wp-abilities/v1/abilities/extrachill/community-create-reply/run', array(
+			'body'    => array( 'input' => $body ),
 			'user_id' => $acting_user_id,
 		) );
+		$result = $venue_scope
+			? extrachill_roadie_with_venue_agent_principal( $acting_user_id, (int) $venue_scope['agent_id'], $request )
+			: $request();
 
 		if ( $result['success'] ?? false ) {
 			$result['message'] = 'Reply posted successfully.';

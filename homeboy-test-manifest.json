@@ -9,6 +9,9 @@
     },
     "tests/tool-mode-scope-smoke.php": {
       "environment": "standalone-php"
+    },
+    "tests/venue-agent-instances-smoke.php": {
+      "environment": "standalone-php"
     }
   }
 }

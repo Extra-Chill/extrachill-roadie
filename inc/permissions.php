@@ -195,6 +195,12 @@ function extrachill_roadie_canonical_team_access_bridge( $can_access, $principal
 
 	$is_roadie = EXTRACHILL_ROADIE_AGENT_SLUG === sanitize_title( (string) $agent_id );
 	if ( is_numeric( $agent_id ) ) {
+		if ( function_exists( 'extrachill_roadie_resolve_venue_agent_scope' ) ) {
+			$venue_scope = extrachill_roadie_resolve_venue_agent_scope( (int) $agent_id, (int) $principal->acting_user_id );
+			if ( is_array( $venue_scope ) ) {
+				return true;
+			}
+		}
 		$is_roadie = extrachill_roadie_get_agent_id() === (int) $agent_id;
 	}
 
@@ -202,6 +208,22 @@ function extrachill_roadie_canonical_team_access_bridge( $can_access, $principal
 	return $is_roadie && user_can( $principal->acting_user_id, 'access_roadie' );
 }
 add_filter( 'wp_agent_can_access_agent', 'extrachill_roadie_canonical_team_access_bridge', 10, 5 );
+
+/** Authorize numeric venue instances only after exact owner and membership checks. */
+function extrachill_roadie_venue_chat_permission( bool $allowed, array $input ): bool {
+	$agent = trim( (string) ( $input['agent'] ?? '' ) );
+	if ( ! is_numeric( $agent ) || ! function_exists( 'extrachill_roadie_resolve_venue_agent_scope' ) ) {
+		return $allowed;
+	}
+
+	$scope = extrachill_roadie_resolve_venue_agent_scope( (int) $agent, get_current_user_id() );
+	if ( null === $scope ) {
+		return $allowed;
+	}
+
+	return is_array( $scope );
+}
+add_filter( 'agents_chat_permission', 'extrachill_roadie_venue_chat_permission', 20, 2 );
 
 /**
  * Allow Roadie team members to reach owner-scoped pending-action resolution.
@@ -301,23 +323,40 @@ function extrachill_roadie_gate_widget_agent_list( $agents ): array {
 		}
 	}
 
-	if ( $has_roadie || ! extrachill_roadie_current_user_can_see_widget() ) {
-		return array_values( $agents );
+	if ( ! $has_roadie && extrachill_roadie_current_user_can_see_widget() ) {
+		$roadie = extrachill_roadie_get_agent();
+		if ( $roadie ) {
+			$config   = is_array( $roadie['agent_config'] ?? null ) ? $roadie['agent_config'] : array();
+			$agents[] = array(
+				'agent_slug'        => EXTRACHILL_ROADIE_AGENT_SLUG,
+				'agent_name'        => (string) ( $roadie['agent_name'] ?? EXTRACHILL_ROADIE_AGENT_NAME ),
+				'agent_description' => (string) ( $config['description'] ?? '' ),
+				'meta'              => array(),
+			);
+		}
 	}
 
-	$roadie = extrachill_roadie_get_agent();
-	if ( ! $roadie ) {
-		return array_values( $agents );
+	$voices = function_exists( 'extrachill_roadie_get_managed_venue_voices' )
+		? extrachill_roadie_get_managed_venue_voices()
+		: array();
+	if ( ! empty( $voices ) && ! is_wp_error( $voices ) && function_exists( 'extrachill_roadie_select_venue_agent' ) ) {
+		foreach ( $voices as $voice ) {
+			$selected = extrachill_roadie_select_venue_agent( array( 'venue_term_id' => $voice['term_id'] ) );
+			if ( is_wp_error( $selected ) ) {
+				continue;
+			}
+			$agents[] = array(
+				'agent_slug'        => (string) $selected['agent_id'],
+				'agent_name'        => $voice['name'] . ' Roadie',
+				/* translators: %s: canonical venue name. */
+				'agent_description' => sprintf( __( 'Venue-scoped Roadie for %s.', 'extrachill-roadie' ), $voice['name'] ),
+				'meta'              => array(
+					'definition'   => EXTRACHILL_ROADIE_VENUE_AGENT_SLUG,
+					'public_voice' => $voice['reference'],
+				),
+			);
+		}
 	}
-
-	$config = is_array( $roadie['agent_config'] ?? null ) ? $roadie['agent_config'] : array();
-
-	$agents[] = array(
-		'agent_slug'        => EXTRACHILL_ROADIE_AGENT_SLUG,
-		'agent_name'        => (string) ( $roadie['agent_name'] ?? EXTRACHILL_ROADIE_AGENT_NAME ),
-		'agent_description' => (string) ( $config['description'] ?? '' ),
-		'meta'              => array(),
-	);
 
 	return array_values( $agents );
 }

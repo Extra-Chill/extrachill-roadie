@@ -16,12 +16,14 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return array
  */
 function extrachill_roadie_frontend_chat_config( array $config ): array {
-	$agent_slug = sanitize_title( (string) ( $config['agent_slug'] ?? '' ) );
-	if ( '' !== $agent_slug && EXTRACHILL_ROADIE_AGENT_SLUG !== $agent_slug ) {
+	$agent_slug     = sanitize_title( (string) ( $config['agent_slug'] ?? '' ) );
+	$is_venue_agent = is_numeric( $agent_slug ) && function_exists( 'extrachill_roadie_resolve_venue_agent_scope' )
+		&& is_array( extrachill_roadie_resolve_venue_agent_scope( (int) $agent_slug, get_current_user_id() ) );
+	if ( '' !== $agent_slug && EXTRACHILL_ROADIE_AGENT_SLUG !== $agent_slug && ! $is_venue_agent ) {
 		return $config;
 	}
 
-	$config['fab_label'] = EXTRACHILL_ROADIE_AGENT_NAME;
+	$config['fab_label'] = $is_venue_agent ? __( 'Venue Roadie', 'extrachill-roadie' ) : EXTRACHILL_ROADIE_AGENT_NAME;
 
 	// The widget is team-only (extrachill_roadie_gate_widget_visibility()), so
 	// every caller who actually sees this greeting is a signed-in team member
@@ -65,7 +67,11 @@ function extrachill_roadie_frontend_chat_input( $chat_input, $request, string $a
 		return is_array( $chat_input ) ? $chat_input : array();
 	}
 
-	if ( EXTRACHILL_ROADIE_AGENT_SLUG !== sanitize_title( $agent_slug ) ) {
+	$venue_scope = extrachill_roadie_frontend_venue_scope( $agent_slug );
+	if ( EXTRACHILL_ROADIE_AGENT_SLUG !== sanitize_title( $agent_slug ) && ! is_array( $venue_scope ) ) {
+		if ( is_wp_error( $venue_scope ) ) {
+			$chat_input['agent'] = 'roadie-venue-unauthorized';
+		}
 		return $chat_input;
 	}
 
@@ -74,6 +80,29 @@ function extrachill_roadie_frontend_chat_input( $chat_input, $request, string $a
 		is_array( $chat_input['client_context'] ?? null ) ? $chat_input['client_context'] : array(),
 		$request
 	);
+	if ( is_array( $venue_scope ) ) {
+		$agent_id = (int) $venue_scope['agent_id'];
+		$user_id  = (int) $venue_scope['owner_user_id'];
+		$owner    = array(
+			'type'  => 'agent',
+			'key'   => 'identity:' . $agent_id,
+			'label' => $venue_scope['venue']['name'] . ' Roadie',
+		);
+
+		$chat_input['agent']            = (string) $agent_id;
+		$chat_input['workspace']        = extrachill_roadie_venue_agent_workspace( $agent_id );
+		$chat_input['session_owner']    = $owner;
+		$chat_input['transcript_owner'] = $owner;
+		$chat_input['principal']        = array(
+			'acting_user_id'     => $user_id,
+			'effective_agent_id' => (string) $agent_id,
+			'auth_source'        => 'user',
+			'request_context'    => 'chat',
+			'workspace_id'       => 'agent:' . $agent_id,
+			'owner_type'         => 'user',
+			'owner_key'          => 'user:' . $user_id,
+		);
+	}
 
 	return $chat_input;
 }
@@ -115,7 +144,13 @@ function extrachill_roadie_frontend_chat_ability_input( $input, string $ability,
 		return $input;
 	}
 
-	$input['workspace'] = extrachill_roadie_conversation_workspace();
+	$venue_scope        = extrachill_roadie_frontend_venue_scope( $agent_slug );
+	$input['workspace'] = is_array( $venue_scope )
+		? extrachill_roadie_venue_agent_workspace( (int) $venue_scope['agent_id'] )
+		: extrachill_roadie_conversation_workspace();
+	if ( is_array( $venue_scope ) ) {
+		$input['agent'] = (string) $venue_scope['agent_id'];
+	}
 	if ( 'agents/list-conversation-sessions' === $ability ) {
 		$input['context'] = implode( ',', extrachill_roadie_compose_modes( array() ) );
 	}
@@ -185,6 +220,9 @@ function extrachill_roadie_pending_action_origin_is_valid( string $workspace_typ
 	if ( 'network' === $workspace_type ) {
 		return extrachill_roadie_conversation_workspace()['workspace_id'] === $workspace_id;
 	}
+	if ( 'agent' === $workspace_type && ctype_digit( $workspace_id ) ) {
+		return is_array( extrachill_roadie_resolve_venue_agent_scope( (int) $workspace_id, get_current_user_id() ) );
+	}
 
 	if ( 'site' !== $workspace_type || ! function_exists( 'get_home_url' ) ) {
 		return false;
@@ -203,7 +241,17 @@ function extrachill_roadie_frontend_chat_targets_roadie( string $agent_slug, arr
 		$agent_slug = sanitize_title( (string) ( $config['agent_slug'] ?? $config['default_agent_slug'] ?? '' ) );
 	}
 
-	return '' === $agent_slug || EXTRACHILL_ROADIE_AGENT_SLUG === $agent_slug;
+	return '' === $agent_slug || EXTRACHILL_ROADIE_AGENT_SLUG === $agent_slug || is_array( extrachill_roadie_frontend_venue_scope( $agent_slug ) );
+}
+
+/** Resolve the selected numeric venue identity against current authority. */
+function extrachill_roadie_frontend_venue_scope( string $agent_slug ) {
+	$agent_slug = sanitize_title( $agent_slug );
+	if ( ! is_numeric( $agent_slug ) || ! function_exists( 'extrachill_roadie_resolve_venue_agent_scope' ) ) {
+		return null;
+	}
+
+	return extrachill_roadie_resolve_venue_agent_scope( (int) $agent_slug, get_current_user_id() );
 }
 
 /**
