@@ -2,6 +2,16 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.21.0] - 2026-07-30
+
+### Added
+- add venue-scoped Roadie agents
+
+### Fixed
+- drop dead array guard on cross-site venue voices response
+- correct test stub fidelity and filter parameter contracts
+- declare agents-api as a validation dependency
+
 ## [0.20.1] - 2026-07-26
 
 ### Changed
