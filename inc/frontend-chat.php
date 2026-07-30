@@ -56,7 +56,8 @@ add_filter( 'frontend_agent_chat_config', 'extrachill_roadie_frontend_chat_confi
  * Guarded on the Roadie agent slug, mirroring the branding hook above: a
  * non-roadie agent or a non-frontend caller is unaffected.
  *
- * @param array            $chat_input Canonical agents/chat input.
+ * @param mixed            $chat_input Canonical agents/chat input. Filter arguments are
+ *                                     untrusted, so the type is asserted at runtime.
  * @param \WP_REST_Request $request    REST request.
  * @param string           $agent_slug Selected agent slug.
  * @param array            $config     Frontend chat configuration.
@@ -64,7 +65,7 @@ add_filter( 'frontend_agent_chat_config', 'extrachill_roadie_frontend_chat_confi
  */
 function extrachill_roadie_frontend_chat_input( $chat_input, $request, string $agent_slug, array $config ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- $config is required by the 4-arg frontend_agent_chat_chat_input/queue_input filter signature.
 	if ( ! is_array( $chat_input ) ) {
-		return is_array( $chat_input ) ? $chat_input : array();
+		return array();
 	}
 
 	$venue_scope = extrachill_roadie_frontend_venue_scope( $agent_slug );
@@ -112,7 +113,8 @@ add_filter( 'frontend_agent_chat_queue_input', 'extrachill_roadie_frontend_chat_
 /**
  * Apply Roadie's network workspace to the complete conversation lifecycle.
  *
- * @param array            $input      Canonical ability input.
+ * @param mixed            $input      Canonical ability input. Filter arguments are
+ *                                     untrusted, so the type is asserted at runtime.
  * @param string           $ability    Canonical ability name.
  * @param \WP_REST_Request $request    REST request.
  * @param string           $agent_slug Selected agent slug.
@@ -167,7 +169,8 @@ add_filter( 'frontend_agent_chat_ability_input', 'extrachill_roadie_frontend_cha
  * WordPress origin. Data Machine remains authoritative and verifies the routed
  * store's action repeats the claimed origin before resolving it.
  *
- * @param array            $input   Canonical pending-action resolver input.
+ * @param mixed            $input   Canonical pending-action resolver input. Filter
+ *                                  arguments are untrusted, so the type is asserted at runtime.
  * @param \WP_REST_Request $request REST request.
  * @param array            $origin  Untrusted opaque origin returned by the client.
  * @param array            $config  Frontend chat configuration.
@@ -213,6 +216,9 @@ function extrachill_roadie_pending_action_origin_is_valid( string $workspace_typ
 
 	$site       = get_site( $blog_id );
 	$network_id = (int) get_current_network_id();
+	// `get_site()` is duck-typed at this boundary, so the object shape is
+	// checked rather than asserting a concrete WP_Site instance.
+	// @phpstan-ignore nullCoalesce.property
 	if ( ! is_object( $site ) || $network_id <= 0 || (int) ( $site->site_id ?? 0 ) !== $network_id ) {
 		return false;
 	}
@@ -314,8 +320,10 @@ function extrachill_roadie_compose_modes( $existing ): array {
  * renders each key into the prompt as `- key: value`, giving the agent accurate
  * location awareness instead of guessing.
  *
- * @param array            $client_context Existing transport-level client context.
- * @param \WP_REST_Request $request        REST request.
+ * @param array $client_context Existing transport-level client context.
+ * @param mixed $request        REST request when dispatched over REST. Filter
+ *                              arguments are untrusted, so the type is asserted
+ *                              at runtime rather than assumed.
  * @return array Enriched client context.
  */
 function extrachill_roadie_build_client_context( array $client_context, $request ): array {
@@ -377,13 +385,15 @@ function extrachill_roadie_build_client_context( array $client_context, $request
  *
  * @since 0.15.0
  *
- * @param array  $outputs        Directive outputs (system_text entries).
- * @param array  $client_context Full client context payload.
+ * @param mixed  $outputs        Directive outputs (system_text entries). Filter arguments
+ *                               are untrusted, so the type is asserted at runtime.
+ * @param mixed  $client_context Full client context payload. Filter arguments are
+ *                               untrusted, so the type is asserted at runtime.
  * @return array Outputs, possibly with page-awareness guidance appended.
  */
 function extrachill_roadie_page_awareness_guidance( $outputs, $client_context ): array {
 	if ( ! is_array( $outputs ) ) {
-		return is_array( $outputs ) ? $outputs : array();
+		return array();
 	}
 
 	// Guardrail: only assert page awareness when the page URL is actually

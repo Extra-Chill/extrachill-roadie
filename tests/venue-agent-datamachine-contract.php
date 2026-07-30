@@ -16,7 +16,15 @@ namespace AgentsAPI\Core\Identity {
 		}
 	}
 
-	class WP_Agent_Materialized_Identity {}
+	// Mirrors the real AgentsAPI class. An empty placeholder here shadows the
+	// genuine declaration during static analysis, which reports every valid
+	// $id / $scope access in plugin source as an undefined property.
+	class WP_Agent_Materialized_Identity {
+		public function __construct(
+			public readonly int $id = 1,
+			public readonly ?WP_Agent_Identity_Scope $scope = null
+		) {}
+	}
 }
 
 namespace DataMachine\Core\Identity {
