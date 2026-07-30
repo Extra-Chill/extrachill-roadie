@@ -106,6 +106,9 @@ function extrachill_roadie_allowed_redirect_uris(): array {
 	 */
 	$uris = apply_filters( 'extrachill_roadie_allowed_redirect_uris', $defaults );
 
+	// Filtered values are untrusted regardless of the documented type, so the
+	// shape is asserted before use.
+	// @phpstan-ignore function.alreadyNarrowedType
 	if ( ! is_array( $uris ) ) {
 		return $defaults;
 	}
@@ -176,7 +179,9 @@ add_filter( 'datamachine_can_access_agent', 'extrachill_roadie_team_access_bridg
  * @since 0.20.0
  *
  * @param bool                                           $can_access   Store-derived access decision.
- * @param \AgentsAPI\AI\WP_Agent_Execution_Principal      $principal    Canonical execution principal.
+ * @param mixed                                          $principal    Canonical execution principal when present. Filter
+ *                                                                     arguments are untrusted, so the type is asserted at
+ *                                                                     runtime rather than assumed.
  * @param string                                         $agent_id     Agent slug or numeric ID.
  * @param string                                         $minimum_role Minimum role required.
  * @param array                                          $context      Host authorization context.
@@ -306,7 +311,9 @@ add_filter( 'frontend_agent_chat_user_can_see', 'extrachill_roadie_gate_widget_v
  *
  * @since 0.19.0
  *
- * @param array $agents Accessible agents for the frontend selector.
+ * @param mixed $agents Accessible agents for the frontend selector. Filter
+ *                      arguments are untrusted, so the type is asserted at
+ *                      runtime rather than assumed.
  * @return array
  */
 function extrachill_roadie_gate_widget_agent_list( $agents ): array {

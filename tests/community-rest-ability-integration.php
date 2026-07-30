@@ -4,7 +4,13 @@
 declare(strict_types=1);
 
 namespace AgentsAPI\AI {
+	// Mirrors the members of the real AgentsAPI class that plugin source uses.
+	// A partial stub here shadows the genuine declaration during static
+	// analysis, so anything omitted is reported as undefined at every call site.
 	class WP_Agent_Execution_Principal {
+		public const REQUEST_CONTEXT_CHAT = 'chat';
+		public const REQUEST_CONTEXT_REST = 'rest';
+
 		public $capability_ceiling = null;
 		public int $acting_user_id;
 		public string $effective_agent_id;
@@ -12,6 +18,10 @@ namespace AgentsAPI\AI {
 		public function __construct( int $acting_user_id, string $effective_agent_id = '__wordpress_user__' ) {
 			$this->acting_user_id    = $acting_user_id;
 			$this->effective_agent_id = $effective_agent_id;
+		}
+
+		public static function user_session( int $acting_user_id, string $effective_agent_id, string $request_context = self::REQUEST_CONTEXT_REST ): self {
+			return new self( $acting_user_id, $effective_agent_id );
 		}
 	}
 }
