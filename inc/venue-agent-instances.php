@@ -125,7 +125,7 @@ function extrachill_roadie_get_managed_venue_voices() {
 	if ( is_wp_error( $response ) ) {
 		return $response;
 	}
-	if ( ! is_array( $response ) || ! isset( $response['voices'] ) || ! is_array( $response['voices'] ) ) {
+	if ( ! isset( $response['voices'] ) || ! is_array( $response['voices'] ) ) {
 		return new WP_Error( 'roadie_venue_authority_invalid', __( 'Venue authority returned an invalid response.', 'extrachill-roadie' ) );
 	}
 
