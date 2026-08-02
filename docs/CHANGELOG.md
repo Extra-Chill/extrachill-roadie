@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.22.1] - 2026-08-02
+
+### Fixed
+- bootstrap Events booking abilities cross-site
+
 ## [0.22.0] - 2026-08-02
 
 ### Added
