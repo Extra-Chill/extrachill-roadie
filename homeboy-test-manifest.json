@@ -12,6 +12,9 @@
     },
     "tests/venue-agent-instances-smoke.php": {
       "environment": "standalone-php"
+    },
+    "tests/manage-venue-bookings-smoke.php": {
+      "environment": "standalone-php"
     }
   }
 }
