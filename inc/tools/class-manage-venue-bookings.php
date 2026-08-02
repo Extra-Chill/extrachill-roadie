@@ -82,7 +82,7 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 			return $use_http;
 		}
 
-		$ability = str_starts_with( $path, self::ABILITY_ROUTE_PREFIX ) && str_ends_with( $path, self::ABILITY_ROUTE_SUFFIX )
+		$ability = 0 === strpos( $path, self::ABILITY_ROUTE_PREFIX ) && self::ABILITY_ROUTE_SUFFIX === substr( $path, -strlen( self::ABILITY_ROUTE_SUFFIX ) )
 			? substr( $path, strlen( self::ABILITY_ROUTE_PREFIX ), -strlen( self::ABILITY_ROUTE_SUFFIX ) )
 			: '';
 		if ( ! in_array( $ability, self::BOOTSTRAP_ABILITIES, true ) ) {
