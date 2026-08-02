@@ -139,6 +139,9 @@ function ec_cross_site_rest_request( string $site_key, string $method, string $p
 	$GLOBALS['ec_roadie_test_rest_calls'][] = $entry;
 
 	$response = $GLOBALS['ec_roadie_test_rest_response'];
+	if ( is_callable( $response ) ) {
+		return $response( $site_key, $method, $path, $args );
+	}
 	if ( $response instanceof WP_Error ) {
 		return $response;
 	}

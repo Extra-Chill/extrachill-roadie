@@ -46,6 +46,7 @@ add_action(
 		require_once __DIR__ . '/class-present-question.php';
 		require_once __DIR__ . '/class-search-content.php';
 		require_once __DIR__ . '/class-studio-intelligence.php';
+		require_once __DIR__ . '/class-manage-venue-bookings.php';
 
 		new ECRoadie_ManageArtistProfile();
 		new ECRoadie_ManageLinkPage();
@@ -60,6 +61,7 @@ add_action(
 		new ECRoadie_PresentQuestion();
 		new ECRoadie_SearchContent();
 		new ECRoadie_StudioIntelligence();
+		new ECRoadie_ManageVenueBookings();
 	}
 );
 
@@ -88,5 +90,6 @@ function extrachill_roadie_managed_tool_slugs(): array {
 		'file_feature_request',
 		'inspect_code',
 		'inspect_page',
+		'manage_venue_bookings',
 	);
 }
