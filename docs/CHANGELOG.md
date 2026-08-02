@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.22.0] - 2026-08-02
+
+### Added
+- expose venue booking operations through Roadie
+
 ## [0.21.0] - 2026-07-30
 
 ### Added
