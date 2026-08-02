@@ -18,6 +18,7 @@ function apply_filters( string $hook, $value, ...$args ) {
 }
 function absint( $value ): int { return abs( (int) $value ); }
 function ec_get_site_url( string $site ): string { return 'events' === $site ? 'https://events.extrachill.test' : ''; }
+function get_current_blog_id(): int { return (int) ( $GLOBALS['roadie_booking_current_blog'] ?? 1 ); }
 function extrachill_roadie_resolve_venue_agent_scope( int $agent_id, int $user_id ) {
 	if ( 900 !== $agent_id ) {
 		return null;
@@ -40,6 +41,7 @@ $bookings = array(
 	20 => array( 'id' => 20, 'venue_term_id' => 88, 'artist_name' => 'Other Band', 'status' => 'submitted', 'version' => 1 ),
 );
 $GLOBALS['roadie_booking_attempts'] = array();
+$GLOBALS['roadie_booking_current_blog'] = 1;
 $GLOBALS['ec_roadie_test_rest_response'] = static function ( string $site, string $method, string $path, array $args ) use ( &$bookings ) {
 	$user_id = (int) ( $args['user_id'] ?? 0 );
 	$input   = (array) ( $args['body']['input'] ?? array() );
@@ -87,10 +89,39 @@ $GLOBALS['ec_roadie_test_rest_response'] = static function ( string $site, strin
 };
 
 $tool = new ECRoadie_ManageVenueBookings();
+booking_assert(
+	true === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'events', 'POST', '/wp-abilities/v1/abilities/extrachill/list-venue-bookings/run', array() ),
+	'Main-site booking ability calls require the Events bootstrap.'
+);
+booking_assert(
+	false === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'events', 'GET', '/wp-abilities/v1/abilities/extrachill/list-venue-bookings/run', array() ),
+	'Non-POST requests retain the transport default.'
+);
+booking_assert(
+	false === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'events', 'POST', '/wp-abilities/v1/abilities/extrachill/unrelated/run', array() ),
+	'Unrelated Events abilities retain the transport default.'
+);
+booking_assert(
+	false === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'main', 'POST', '/wp-abilities/v1/abilities/extrachill/list-venue-bookings/run', array() ),
+	'Unrelated sites retain the transport default.'
+);
+$GLOBALS['roadie_booking_current_blog'] = 7;
+booking_assert(
+	false === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'events', 'POST', '/wp-abilities/v1/abilities/extrachill/get-venue-booking-activity/run', array() ),
+	'Events-origin booking calls can use the in-process route.'
+);
+$GLOBALS['roadie_booking_current_blog'] = 1;
+
 $list = $tool->handle_tool_call( array( 'action' => 'list_bookings', 'calling_user_id' => 41, 'effective_agent_id' => 900 ) );
 booking_assert( true === ( $list['success'] ?? false ) && 10 === $list['data'][0]['id'], 'Authorized member lists only the selected venue.' );
 booking_assert( 77 === $GLOBALS['roadie_booking_attempts'][0]['args']['body']['input']['venue_term_id'], 'Venue agent pins exact venue.' );
 booking_assert( 41 === $GLOBALS['roadie_booking_attempts'][0]['args']['user_id'], 'Caller identity reaches Events.' );
+booking_assert( true === $GLOBALS['ec_roadie_test_rest_calls'][0]['loopback'], 'Booking dispatch selects the target-bootstrap transport.' );
+booking_assert( 41 === $GLOBALS['ec_roadie_test_rest_calls'][0]['effective_user'], 'Target-bootstrap dispatch preserves the authoritative caller identity.' );
+
+$calls_before_anonymous = count( $GLOBALS['roadie_booking_attempts'] );
+$anonymous = $tool->handle_tool_call( array( 'action' => 'list_bookings', 'calling_user_id' => 0, 'venue_term_id' => 77 ) );
+booking_assert( false === ( $anonymous['success'] ?? true ) && $calls_before_anonymous === count( $GLOBALS['roadie_booking_attempts'] ), 'Anonymous callers are denied before target dispatch.' );
 
 $inspect = $tool->handle_tool_call( array( 'action' => 'inspect_booking', 'booking_id' => 10, 'calling_user_id' => 41, 'effective_agent_id' => 900 ) );
 booking_assert( 10 === ( $inspect['data']['booking']['id'] ?? 0 ), 'Authorized member can inspect booking state.' );

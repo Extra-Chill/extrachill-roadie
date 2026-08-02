@@ -9,6 +9,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 	protected string $site_key  = 'events';
 	protected string $tool_slug = 'manage_venue_bookings';
+	private const ABILITY_ROUTE_PREFIX = '/wp-abilities/v1/abilities/';
+	private const ABILITY_ROUTE_SUFFIX = '/run';
+	private const BOOTSTRAP_ABILITIES  = array(
+		'extrachill/list-venue-bookings',
+		'extrachill/get-venue-booking',
+		'extrachill/get-venue-booking-activity',
+		'extrachill/list-booking-holds',
+		'extrachill/list-booking-communications',
+		'extrachill/assign-venue-booking',
+		'extrachill/correct-venue-booking-intake',
+		'extrachill/select-venue-booking-performance',
+		'extrachill/transition-venue-booking',
+		'extrachill/create-booking-hold',
+		'extrachill/release-booking-hold',
+		'extrachill/send-booking-message',
+		'extrachill/convert-booking-to-event',
+	);
 
 	private const ABILITIES = array(
 		'list_bookings'      => 'extrachill/list-venue-bookings',
@@ -54,6 +71,26 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 
 	public function __construct() {
 		$this->registerTool( $this->tool_slug, array( $this, 'getToolDefinition' ), array( 'roadie' ), array( 'access_level' => 'authenticated' ) );
+		add_filter( 'ec_cross_site_use_http_loopback', array( self::class, 'use_http_loopback' ), 10, 5 );
+	}
+
+	/** Force target-site bootstrap for Events-owned booking abilities. */
+	public static function use_http_loopback( bool $use_http, string $site_key, string $method, string $path, array $args ): bool {
+		unset( $args );
+
+		if ( $use_http || 'events' !== $site_key || 'POST' !== $method ) {
+			return $use_http;
+		}
+
+		$ability = str_starts_with( $path, self::ABILITY_ROUTE_PREFIX ) && str_ends_with( $path, self::ABILITY_ROUTE_SUFFIX )
+			? substr( $path, strlen( self::ABILITY_ROUTE_PREFIX ), -strlen( self::ABILITY_ROUTE_SUFFIX ) )
+			: '';
+		if ( ! in_array( $ability, self::BOOTSTRAP_ABILITIES, true ) ) {
+			return $use_http;
+		}
+
+		$events_blog_id = function_exists( 'ec_get_blog_id' ) ? (int) ec_get_blog_id( 'events' ) : 0;
+		return $events_blog_id <= 0 || ! function_exists( 'get_current_blog_id' ) || $events_blog_id !== (int) get_current_blog_id();
 	}
 
 	public function getToolDefinition(): array {

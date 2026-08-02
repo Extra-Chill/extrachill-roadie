@@ -103,7 +103,7 @@ function sprintf_safe( string $format, ...$args ): string {
 }
 
 function ec_get_blog_id( string $key ): ?int {
-	$map = array( 'main' => 1, 'community' => 2, 'artist' => 3 );
+	$map = array( 'main' => 1, 'community' => 2, 'artist' => 3, 'events' => 7 );
 	return $map[ $key ] ?? null;
 }
 
@@ -125,11 +125,13 @@ function get_post( int $id ) {
  * whatever the test sets in $GLOBALS['ec_roadie_test_rest_response'].
  */
 function ec_cross_site_rest_request( string $site_key, string $method, string $path, array $args = array() ) {
+	$loopback = function_exists( 'apply_filters' ) ? apply_filters( 'ec_cross_site_use_http_loopback', false, $site_key, $method, $path, $args ) : false;
 	$entry = array(
 		'site_key' => $site_key,
 		'method'   => $method,
 		'path'     => $path,
 		'args'     => $args,
+		'loopback' => $loopback,
 		// Snapshot the effective user BEFORE the helper would switch context.
 		// In real life ec_cross_site_rest_request wraps wp_set_current_user
 		// in a try/finally; recording the requested user_id here is what tests
