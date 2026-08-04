@@ -17,7 +17,6 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 		'extrachill/get-venue-booking-activity',
 		'extrachill/list-booking-holds',
 		'extrachill/list-booking-communications',
-		'extrachill/assign-venue-booking',
 		'extrachill/correct-venue-booking-intake',
 		'extrachill/select-venue-booking-performance',
 		'extrachill/transition-venue-booking',
@@ -31,7 +30,6 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 		'list_bookings'      => 'extrachill/list-venue-bookings',
 		'inspect_booking'    => 'extrachill/get-venue-booking',
 		'list_holds'         => 'extrachill/list-booking-holds',
-		'assign_booking'     => 'extrachill/assign-venue-booking',
 		'correct_details'    => 'extrachill/correct-venue-booking-intake',
 		'select_performance' => 'extrachill/select-venue-booking-performance',
 		'transition_booking' => 'extrachill/transition-venue-booking',
@@ -45,7 +43,6 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 		'list_bookings'      => array(),
 		'inspect_booking'    => array( 'booking_id' ),
 		'list_holds'         => array(),
-		'assign_booking'     => array( 'booking_id', 'assignee_user_id', 'expected_version' ),
 		'correct_details'    => array( 'booking_id', 'expected_version' ),
 		'select_performance' => array( 'booking_id', 'expected_version', 'space_key', 'start_at', 'end_at' ),
 		'transition_booking' => array( 'booking_id', 'expected_version', 'to_status' ),
@@ -56,10 +53,9 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 	);
 
 	private const ALLOWED = array(
-		'list_bookings'      => array( 'venue_term_id', 'status', 'assignee_user_id', 'requested_from', 'requested_to', 'limit', 'offset' ),
+		'list_bookings'      => array( 'venue_term_id', 'status', 'requested_from', 'requested_to', 'limit', 'offset' ),
 		'inspect_booking'    => array( 'booking_id' ),
 		'list_holds'         => array( 'venue_term_id', 'booking_id', 'status', 'range_start', 'range_end', 'limit', 'offset' ),
-		'assign_booking'     => array( 'booking_id', 'assignee_user_id', 'expected_version' ),
 		'correct_details'    => array( 'booking_id', 'expected_version', 'contact_name', 'contact_email', 'contact_phone', 'requested_space_key', 'requested_start_at', 'requested_end_at', 'intake' ),
 		'select_performance' => array( 'booking_id', 'expected_version', 'space_key', 'start_at', 'end_at' ),
 		'transition_booking' => array( 'booking_id', 'expected_version', 'to_status', 'note' ),
@@ -104,7 +100,7 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 				'calling_user_id'    => array( 'source' => 'caller_context', 'path' => 'calling_user_id', 'authoritative' => true ),
 				'effective_agent_id' => array( 'source' => 'caller_context', 'path' => 'agent_id', 'authoritative' => true ),
 			),
-			'description'        => 'Manage an authorized venue calendar through Extra Chill Events. List bookings or holds, inspect a booking with its timeline, holds and correspondence, assign it, correct inquiry details, select performance dates, transition lifecycle state, create or release holds, propose an email, or convert a confirmed booking to its canonical event. Events enforces venue membership, conflicts, lifecycle, versions and idempotency. Confirmation, cancellation, email and conversion wait for human approval.',
+			'description'        => 'Manage an authorized venue calendar through Extra Chill Events. List bookings or holds, inspect a booking with its timeline, holds and correspondence, correct inquiry details, select performance dates, transition lifecycle state, create or release holds, propose an email, or convert a confirmed booking to its canonical event. Events enforces venue membership, conflicts, lifecycle, versions and idempotency. Confirmation, cancellation, email and conversion wait for human approval.',
 			'parameters'         => array(
 				'type'                 => 'object',
 				'required'             => array( 'action' ),
@@ -117,7 +113,6 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 					'booking_id'          => array( 'type' => 'integer', 'minimum' => 1 ),
 					'hold_id'             => array( 'type' => 'integer', 'minimum' => 1 ),
 					'expected_version'    => array( 'type' => 'integer', 'minimum' => 1 ),
-					'assignee_user_id'    => array( 'type' => array( 'integer', 'null' ), 'minimum' => 1 ),
 					'status'              => array( 'type' => array( 'string', 'null' ) ),
 					'to_status'           => array( 'type' => 'string', 'enum' => array( 'submitted', 'needs_info', 'under_review', 'negotiating', 'held', 'confirmed', 'declined', 'withdrawn', 'cancelled', 'completed' ) ),
 					'note'                => array( 'type' => array( 'string', 'null' ), 'maxLength' => 1000 ),
@@ -274,7 +269,7 @@ class ECRoadie_ManageVenueBookings extends ECRoadie_PlatformTool {
 	}
 
 	private function present_booking( array $booking ): array {
-		$fields  = array( 'id', 'public_id', 'venue_term_id', 'artist_term_id', 'artist_profile_id', 'artist_name', 'requested_space_key', 'space_key', 'status', 'version', 'assignee_user_id', 'requested_start_at', 'requested_end_at', 'performance_start_at', 'performance_end_at', 'event_id', 'contact_name', 'contact_email', 'contact_phone', 'intake', 'production', 'deal', 'confirmed_deal', 'created_at', 'updated_at' );
+		$fields  = array( 'id', 'public_id', 'venue_term_id', 'artist_term_id', 'artist_profile_id', 'artist_name', 'requested_space_key', 'space_key', 'status', 'version', 'requested_start_at', 'requested_end_at', 'performance_start_at', 'performance_end_at', 'event_id', 'contact_name', 'contact_email', 'contact_phone', 'intake', 'production', 'deal', 'confirmed_deal', 'created_at', 'updated_at' );
 		$summary = array_intersect_key( $booking, array_flip( $fields ) );
 		$summary['management_url'] = $this->management_url( (int) ( $booking['venue_term_id'] ?? 0 ), (int) ( $booking['id'] ?? 0 ) );
 		return $summary;
