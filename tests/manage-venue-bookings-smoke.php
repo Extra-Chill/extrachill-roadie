@@ -37,7 +37,7 @@ function booking_assert( bool $condition, string $message ): void {
 }
 
 $bookings = array(
-	10 => array( 'id' => 10, 'venue_term_id' => 77, 'artist_name' => 'Lo-Fi Band', 'status' => 'under_review', 'version' => 3, 'requested_start_at' => '2026-09-01 20:00:00', 'requested_end_at' => '2026-09-01 23:00:00' ),
+	10 => array( 'id' => 10, 'venue_term_id' => 77, 'artist_name' => 'Lo-Fi Band', 'status' => 'under_review', 'version' => 3, 'assignee_user_id' => 41, 'requested_start_at' => '2026-09-01 20:00:00', 'requested_end_at' => '2026-09-01 23:00:00' ),
 	20 => array( 'id' => 20, 'venue_term_id' => 88, 'artist_name' => 'Other Band', 'status' => 'submitted', 'version' => 1 ),
 );
 $GLOBALS['roadie_booking_attempts'] = array();
@@ -89,6 +89,9 @@ $GLOBALS['ec_roadie_test_rest_response'] = static function ( string $site, strin
 };
 
 $tool = new ECRoadie_ManageVenueBookings();
+$definition = $tool->getToolDefinition();
+booking_assert( ! in_array( 'assign_booking', $definition['parameters']['properties']['action']['enum'], true ), 'Assignment action is absent from the tool contract.' );
+booking_assert( ! isset( $definition['parameters']['properties']['assignee_user_id'] ), 'Assignee input is absent from the tool contract.' );
 booking_assert(
 	true === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'events', 'POST', '/wp-abilities/v1/abilities/extrachill/list-venue-bookings/run', array() ),
 	'Main-site booking ability calls require the Events bootstrap.'
@@ -100,6 +103,10 @@ booking_assert(
 booking_assert(
 	false === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'events', 'POST', '/wp-abilities/v1/abilities/extrachill/unrelated/run', array() ),
 	'Unrelated Events abilities retain the transport default.'
+);
+booking_assert(
+	false === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'events', 'POST', '/wp-abilities/v1/abilities/extrachill/assign-venue-booking/run', array() ),
+	'Removed assignment ability is not bootstrapped.'
 );
 booking_assert(
 	false === ECRoadie_ManageVenueBookings::use_http_loopback( false, 'main', 'POST', '/wp-abilities/v1/abilities/extrachill/list-venue-bookings/run', array() ),
@@ -114,6 +121,7 @@ $GLOBALS['roadie_booking_current_blog'] = 1;
 
 $list = $tool->handle_tool_call( array( 'action' => 'list_bookings', 'calling_user_id' => 41, 'effective_agent_id' => 900 ) );
 booking_assert( true === ( $list['success'] ?? false ) && 10 === $list['data'][0]['id'], 'Authorized member lists only the selected venue.' );
+booking_assert( ! isset( $list['data'][0]['assignee_user_id'] ), 'Booking lists omit assignee fields.' );
 booking_assert( 77 === $GLOBALS['roadie_booking_attempts'][0]['args']['body']['input']['venue_term_id'], 'Venue agent pins exact venue.' );
 booking_assert( 41 === $GLOBALS['roadie_booking_attempts'][0]['args']['user_id'], 'Caller identity reaches Events.' );
 booking_assert( true === $GLOBALS['ec_roadie_test_rest_calls'][0]['loopback'], 'Booking dispatch selects the target-bootstrap transport.' );
@@ -125,6 +133,7 @@ booking_assert( false === ( $anonymous['success'] ?? true ) && $calls_before_ano
 
 $inspect = $tool->handle_tool_call( array( 'action' => 'inspect_booking', 'booking_id' => 10, 'calling_user_id' => 41, 'effective_agent_id' => 900 ) );
 booking_assert( 10 === ( $inspect['data']['booking']['id'] ?? 0 ), 'Authorized member can inspect booking state.' );
+booking_assert( ! isset( $inspect['data']['booking']['assignee_user_id'] ), 'Booking inspection omits assignee fields.' );
 booking_assert( 5 === ( $inspect['data']['holds'][0]['id'] ?? 0 ), 'Inspection includes authoritative holds.' );
 booking_assert( str_contains( $inspect['data']['booking']['management_url'], 'venue_id=77&booking_id=10' ), 'Inspection returns management URL.' );
 
@@ -135,8 +144,9 @@ booking_assert( false === ( $unrelated['success'] ?? true ), 'Unrelated user can
 $other_member = $tool->handle_tool_call( array( 'action' => 'transition_booking', 'booking_id' => 10, 'expected_version' => 3, 'to_status' => 'under_review', 'calling_user_id' => 42 ) );
 booking_assert( false === ( $other_member['success'] ?? true ), 'Different-venue member cannot mutate a booking.' );
 
-$stale = $tool->handle_tool_call( array( 'action' => 'assign_booking', 'booking_id' => 10, 'assignee_user_id' => 41, 'expected_version' => 2, 'calling_user_id' => 41 ) );
-booking_assert( false === ( $stale['success'] ?? true ) && str_contains( $stale['error'], 'changed' ), 'Owning version rules survive delegation.' );
+$calls_before_assignment = count( $GLOBALS['roadie_booking_attempts'] );
+$assignment = $tool->handle_tool_call( array( 'action' => 'assign_booking', 'booking_id' => 10, 'assignee_user_id' => 41, 'expected_version' => 3, 'calling_user_id' => 41 ) );
+booking_assert( false === ( $assignment['success'] ?? true ) && $calls_before_assignment === count( $GLOBALS['roadie_booking_attempts'] ), 'Removed assignment action cannot dispatch.' );
 $invalid = $tool->handle_tool_call( array( 'action' => 'transition_booking', 'booking_id' => 10, 'expected_version' => 3, 'to_status' => 'completed', 'calling_user_id' => 41 ) );
 booking_assert( false === ( $invalid['success'] ?? true ), 'Owning lifecycle rules survive delegation.' );
 $conflict = $tool->handle_tool_call( array( 'action' => 'create_hold', 'booking_id' => 10, 'expected_version' => 3, 'calling_user_id' => 41 ) );
