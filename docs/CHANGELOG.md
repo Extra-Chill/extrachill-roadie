@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.22.2] - 2026-08-04
+
+### Changed
+- remove venue booking assignment contract
+
 ## [0.22.1] - 2026-08-02
 
 ### Fixed
