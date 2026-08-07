@@ -222,12 +222,19 @@ MD;
  * @return string
  */
 function extrachill_roadie_guidance_tools_team( bool $is_admin ): string {
-	$base = <<<'MD'
+	$artist_tools = '';
+	if ( function_exists( 'extrachill_roadie_owner_capabilities_available' ) && extrachill_roadie_owner_capabilities_available( 'manage_artist_profile' ) ) {
+		$artist_tools .= "\n- `manage_artist_profile` — list, get, create, and update artist profiles. Auto-resolves `artist_id` when the calling user manages exactly one artist.";
+	}
+	if ( function_exists( 'extrachill_roadie_owner_capabilities_available' ) && extrachill_roadie_owner_capabilities_available( 'manage_link_page' ) ) {
+		$artist_tools .= "\n- `manage_link_page` — get, edit links, edit socials, edit styles, edit settings on an artist's public link page. Convenience actions (`add_link`, `remove_link`) handle the fetch-modify-save dance for you.";
+	}
+
+	$base = <<<MD
 ## Available Tool Domains
 
 - `search_content` — **read-only** search of Extra Chill's PUBLISHED catalog (2,800+ articles: artist coverage, song-meaning and music-history pieces, festival/show coverage, the deep Grateful Dead / Jerry Garcia writing) across the whole network. This is how you ground music/editorial answers — an artist, a song's meaning, music history, a quote — in what Extra Chill actually published, instead of from memory. Results come back as citation cards (title, full permalink, excerpt) and in the tool data so you can read them and link the articles inline. It is the catalog-read counterpart to `inspect_page`/`inspect_code`: the same "read the real source, then speak from it" discipline, applied to editorial content.
-- `manage_artist_profile` — list, get, create, and update artist profiles. Auto-resolves `artist_id` when the calling user manages exactly one artist.
-- `manage_link_page` — get, edit links, edit socials, edit styles, edit settings on an artist's public link page. Convenience actions (`add_link`, `remove_link`) handle the fetch-modify-save dance for you.
+{$artist_tools}
 - `manage_user_profile` — read or update the user profile (bio, custom title, city, profile links). Defaults to the calling user; admins may target another user by passing `user_id`.
 - `manage_community` — browse forums, list and read topics, post topics and replies, manage notifications on community.extrachill.com.
 - `manage_venue_bookings` — operate an Events venue calendar through the booking domain: list or inspect bookings and holds, update details/performance dates, apply valid lifecycle and hold operations, propose correspondence, and convert confirmed bookings to canonical events. Venue membership, conflicts, versions, lifecycle, and idempotency are enforced by Events. Confirmation, cancellation, email, and event conversion always require human approval.
@@ -312,7 +319,7 @@ function extrachill_roadie_guidance_identity_team( int $calling_user_id ): strin
 
 {$line}
 
-- Tools act on behalf of the calling user by default. You operate on **their** artist profiles, link pages, user profile, and community posts.
+- Tools act on behalf of the calling user by default. You operate only through the user-scoped tools available in this request.
 - You cannot act on behalf of another user — that requires admin access. If you try, the tool returns a clean permission error.
 - The community tool (`manage_community`) attributes forum posts and replies to the calling user, not to the agent. Do not post without their request.
 MD;
@@ -339,7 +346,7 @@ function extrachill_roadie_guidance_identity_admin( int $calling_user_id ): stri
 
 {$line}
 
-- You have administrator access. Tools default to the calling admin, but you **can target another user** by passing an explicit `user_id` to user-scoped tools (`manage_artist_profile`, `manage_link_page`, `manage_user_profile`). Use this only when the admin explicitly asks to act on someone else's behalf.
+- You have administrator access. Available user-scoped tools default to the calling admin, but you **can target another user** by passing an explicit `user_id`. Use this only when the admin explicitly asks to act on someone else's behalf.
 - When acting on another user, name whose data you are changing so the action is auditable.
 - The community tool (`manage_community`) attributes forum posts and replies to the calling user. Do not post on someone else's behalf without an explicit request.
 MD;

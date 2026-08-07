@@ -52,6 +52,14 @@ function __( $text, $domain = null ): string {
 	return (string) $text;
 }
 
+$GLOBALS['ec_roadie_test_owner_capabilities'] = array(
+	'manage_artist_profile' => true,
+	'manage_link_page'      => true,
+);
+function extrachill_roadie_owner_capabilities_available( string $tool_name ): bool {
+	return ! empty( $GLOBALS['ec_roadie_test_owner_capabilities'][ $tool_name ] );
+}
+
 // extrachill_roadie_user_tier() consults user_can() for non-zero callers. The
 // guidance assertions below exercise the team-tier path (the user-scoped
 // "user #<id>" identity line lives in the team/admin guidance), so grant the
@@ -109,6 +117,12 @@ ec_roadie_smoke_assert( str_contains( $guidance_with_caller, 'Operating Mode' ),
 $guidance_for_grantee = apply_filters( 'datamachine_agent_mode_roadie', '', array( 'calling_user_id' => 39 ) );
 ec_roadie_smoke_assert( str_contains( $guidance_for_grantee, 'manage_artist_profile' ), 'Explicitly entitled non-team caller should receive resource-scoped tool guidance.' );
 ec_roadie_smoke_assert( str_contains( $guidance_for_grantee, 'user #39' ), 'Non-team grantee guidance should preserve calling-user identity.' );
+
+$GLOBALS['ec_roadie_test_owner_capabilities']['manage_link_page'] = false;
+$guidance_without_link_owner = extrachill_roadie_compose_guidance( 'team', 38 );
+ec_roadie_smoke_assert( str_contains( $guidance_without_link_owner, 'manage_artist_profile' ), 'Available owner-backed tools should remain advertised.' );
+ec_roadie_smoke_assert( ! str_contains( $guidance_without_link_owner, 'manage_link_page' ), 'Unavailable owner-backed tools must not be advertised.' );
+$GLOBALS['ec_roadie_test_owner_capabilities']['manage_link_page'] = true;
 
 // Without a caller (user_id 0), the tier resolver returns the public tier, so
 // guidance uses the visitor identity contract: no user context to act on, tools

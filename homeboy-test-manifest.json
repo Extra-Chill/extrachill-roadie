@@ -1,6 +1,9 @@
 {
   "schema": "homeboy/test-manifest/v1",
   "tests": {
+    "tests/artist-owner-capabilities-smoke.php": {
+      "environment": "standalone-php"
+    },
     "tests/studio-intelligence-tool-smoke.php": {
       "environment": "standalone-php"
     },

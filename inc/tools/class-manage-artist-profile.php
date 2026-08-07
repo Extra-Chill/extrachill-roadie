@@ -119,15 +119,16 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 	/**
 	 * List the acting user's artist profiles.
 	 *
-	 * Artist IDs are stored in user meta (network-wide), but we need to
-	 * read post data from the artist blog via switch_to_blog (safe for
-	 * data reads — only abilities fail cross-site).
+	 * Membership and artist summaries come from the Users-owned ability.
 	 */
 	private function handle_list( int $acting_user_id ): array {
-		$user_id    = $acting_user_id;
-		$artist_ids = $this->get_user_artist_ids( $user_id );
+		$user_id = $acting_user_id;
+		$artists = $this->get_user_artists( $user_id );
+		if ( is_array( $artists ) && isset( $artists['success'] ) ) {
+			return $artists;
+		}
 
-		if ( empty( $artist_ids ) ) {
+		if ( empty( $artists ) ) {
 			return $this->buildDiagnosticErrorResponse(
 				'You do not have any artist profiles yet.',
 				'not_found',
@@ -139,29 +140,6 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 					'tool_hint' => 'manage_artist_profile',
 				)
 			);
-		}
-
-		// Read post data from the artist blog (switch_to_blog is safe for reads).
-		$artists     = array();
-		$artist_blog = $this->get_blog_id( 'artist' );
-
-		if ( $artist_blog ) {
-			switch_to_blog( $artist_blog );
-		}
-
-		foreach ( $artist_ids as $artist_id ) {
-			$post = get_post( (int) $artist_id );
-			if ( $post && 'artist_profile' === $post->post_type ) {
-				$artists[] = array(
-					'id'   => (int) $post->ID,
-					'name' => $post->post_title,
-					'slug' => $post->post_name,
-				);
-			}
-		}
-
-		if ( $artist_blog ) {
-			restore_current_blog();
 		}
 
 		return array(
@@ -185,9 +163,8 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 			return $artist_id; // Error or disambiguation response.
 		}
 
-		return $this->rest_request( 'GET', '/artists/' . $artist_id, array(
-			'user_id' => $acting_user_id,
-		) );
+		$result = $this->execute_cross_site_ability( 'extrachill/get-artist-data', array( 'artist_id' => $artist_id ), $acting_user_id, true );
+		return $this->artist_result( $result, $artist_id );
 	}
 
 	/**
@@ -215,15 +192,10 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 			$body['local_city'] = $parameters['local_city'];
 		}
 
-		$result = $this->rest_request( 'POST', '/artists', array(
-			'body'    => $body,
-			'user_id' => $acting_user_id,
-		) );
-
+		$result = $this->artist_result( $this->execute_cross_site_ability( 'extrachill/create-artist', $body, $acting_user_id ) );
 		if ( $result['success'] ?? false ) {
 			$result['message'] = 'Artist profile created successfully.';
 		}
-
 		return $result;
 	}
 
@@ -254,20 +226,16 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 			);
 		}
 
-		$result = $this->rest_request( 'PUT', '/artists/' . $artist_id, array(
-			'body'    => $body,
-			'user_id' => $acting_user_id,
-		) );
-
+		$body['artist_id'] = $artist_id;
+		$result            = $this->artist_result( $this->execute_cross_site_ability( 'extrachill/update-artist', $body, $acting_user_id ), $artist_id );
 		if ( $result['success'] ?? false ) {
 			$result['message'] = 'Artist profile updated successfully.';
 		}
-
 		return $result;
 	}
 
 	/**
-	 * Resolve the artist ID from parameters or auto-detect from the acting user's meta.
+	 * Resolve the artist ID from parameters or the canonical owner response.
 	 *
 	 * @param array $parameters     Tool parameters.
 	 * @param int   $acting_user_id User to auto-detect artists for when artist_id is absent.
@@ -278,10 +246,13 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 			return (int) $parameters['artist_id'];
 		}
 
-		$user_id    = $acting_user_id;
-		$artist_ids = $this->get_user_artist_ids( $user_id );
+		$user_id = $acting_user_id;
+		$artists = $this->get_user_artists( $user_id );
+		if ( is_array( $artists ) && isset( $artists['success'] ) ) {
+			return $artists;
+		}
 
-		if ( empty( $artist_ids ) ) {
+		if ( empty( $artists ) ) {
 			return $this->buildDiagnosticErrorResponse(
 				'No artist profile found for your account.',
 				'not_found',
@@ -295,31 +266,8 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 			);
 		}
 
-		if ( count( $artist_ids ) === 1 ) {
-			return (int) $artist_ids[0];
-		}
-
-		// Multiple artists — need disambiguation.
-		// Read post data from the artist blog (switch_to_blog is safe for reads).
-		$artists     = array();
-		$artist_blog = $this->get_blog_id( 'artist' );
-
-		if ( $artist_blog ) {
-			switch_to_blog( $artist_blog );
-		}
-
-		foreach ( $artist_ids as $aid ) {
-			$post = get_post( (int) $aid );
-			if ( $post && 'artist_profile' === $post->post_type ) {
-				$artists[] = array(
-					'id'   => (int) $post->ID,
-					'name' => $post->post_title,
-				);
-			}
-		}
-
-		if ( $artist_blog ) {
-			restore_current_blog();
+		if ( count( $artists ) === 1 ) {
+			return (int) $artists[0]['id'];
 		}
 
 		return array(
@@ -335,19 +283,45 @@ class ECRoadie_ManageArtistProfile extends ECRoadie_PlatformTool {
 	}
 
 	/**
-	 * Get the user's artist profile IDs from user meta.
+	 * Resolve and validate the Users-owned membership response.
 	 *
-	 * @param int $user_id WordPress user ID.
-	 * @return array Array of artist profile IDs.
+	 * @return array<int,array<string,mixed>>|array<string,mixed>
 	 */
-	private function get_user_artist_ids( int $user_id ): array {
-		$ids = get_user_meta( $user_id, '_artist_profile_ids', true );
-
-		if ( empty( $ids ) || ! is_array( $ids ) ) {
-			return array();
+	private function get_user_artists( int $user_id ): array {
+		$result = $this->execute_local_ability( 'extrachill/get-user-artists', array( 'user_id' => $user_id ), $user_id );
+		if ( is_wp_error( $result ) ) {
+			return $this->buildErrorResponse( $result->get_error_message(), $this->tool_slug );
 		}
 
-		return array_values( array_filter( $ids ) );
+		if ( ! is_array( $result ) ) {
+			return $this->buildErrorResponse( 'The artist membership owner returned an invalid response.', $this->tool_slug );
+		}
+
+		foreach ( $result as $artist ) {
+			if ( ! is_array( $artist ) || (int) ( $artist['id'] ?? 0 ) <= 0 || ! is_string( $artist['name'] ?? null ) || ! is_string( $artist['slug'] ?? null ) || ! array_key_exists( 'profile_image_url', $artist ) || ( null !== $artist['profile_image_url'] && ! is_string( $artist['profile_image_url'] ) ) ) {
+				return $this->buildErrorResponse( 'The artist membership owner returned an invalid response.', $this->tool_slug );
+			}
+		}
+
+		return array_values( $result );
+	}
+
+	/** Validate an Artist-owned profile response before reporting success. */
+	private function artist_result( $result, int $expected_id = 0 ): array {
+		if ( is_wp_error( $result ) ) {
+			return $this->buildErrorResponse( $result->get_error_message(), $this->tool_slug );
+		}
+
+		$id = is_array( $result ) ? (int) ( $result['id'] ?? 0 ) : 0;
+		if ( $id <= 0 || ( $expected_id > 0 && $id !== $expected_id ) || ! is_string( $result['name'] ?? null ) || ! is_string( $result['slug'] ?? null ) ) {
+			return $this->buildErrorResponse( 'The artist owner returned an invalid response.', $this->tool_slug );
+		}
+
+		return array(
+			'success'   => true,
+			'data'      => $result,
+			'tool_name' => $this->tool_slug,
+		);
 	}
 
 }
