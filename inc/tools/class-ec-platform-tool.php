@@ -90,6 +90,47 @@ abstract class ECRoadie_PlatformTool extends BaseTool {
 		);
 	}
 
+	/** Execute an owner ability on this tool's target site. */
+	protected function execute_cross_site_ability( string $ability_name, array $input, int $user_id, bool $readonly = false ) {
+		if ( ! function_exists( 'ec_cross_site_rest_request' ) ) {
+			return new WP_Error( 'cross_site_unavailable', 'Cross-site REST helper not available.' );
+		}
+
+		$args = array( 'user_id' => $user_id );
+		if ( $readonly ) {
+			$args['query'] = array( 'input' => $input );
+		} else {
+			$args['body'] = array( 'input' => $input );
+		}
+
+		return ec_cross_site_rest_request(
+			$this->site_key,
+			$readonly ? 'GET' : 'POST',
+			'/wp-abilities/v1/abilities/' . $ability_name . '/run',
+			$args
+		);
+	}
+
+	/** Execute a locally registered owner ability as the selected user. */
+	protected function execute_local_ability( string $ability_name, array $input, int $user_id ) {
+		if ( ! function_exists( 'wp_get_ability' ) ) {
+			return new WP_Error( 'ability_api_unavailable', 'WordPress Abilities API is unavailable.' );
+		}
+
+		$ability = wp_get_ability( $ability_name );
+		if ( ! is_object( $ability ) || ! method_exists( $ability, 'execute' ) ) {
+			return new WP_Error( 'ability_not_found', sprintf( 'Required ability %s is unavailable.', $ability_name ) );
+		}
+
+		$original_user_id = get_current_user_id();
+		try {
+			wp_set_current_user( $user_id );
+			return $ability->execute( $input );
+		} finally {
+			wp_set_current_user( $original_user_id );
+		}
+	}
+
 	/**
 	 * Get the blog ID for a site by key.
 	 *

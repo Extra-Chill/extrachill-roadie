@@ -18,6 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/caller.php';
+require_once dirname( __DIR__ ) . '/owner-capabilities.php';
 
 /**
  * Register EC platform chat tools after all plugins have loaded.

@@ -22,6 +22,7 @@ function ec_roadie_test_reset(): void {
 	$GLOBALS['ec_roadie_test_rest_response']   = array( 'ok' => true );
 	$GLOBALS['ec_roadie_test_ability_calls']   = array();
 	$GLOBALS['ec_roadie_test_ability_results'] = array(
+		'extrachill/get-user-artists'     => array(),
 		'extrachill/get-user-settings'    => array( 'local_scene_visibility' => 'public' ),
 		'extrachill/update-user-settings' => array( 'success' => true ),
 	);
