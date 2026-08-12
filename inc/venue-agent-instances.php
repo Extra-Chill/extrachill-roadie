@@ -12,6 +12,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 const EXTRACHILL_ROADIE_VENUE_AGENT_SLUG  = 'roadie-venue';
 const EXTRACHILL_ROADIE_VENUE_VOICES_PATH = '/wp-abilities/v1/abilities/extrachill/get-managed-venue-voices/run';
 
+/** Force target-site bootstrap for the Events-owned venue voice ability. */
+function extrachill_roadie_venue_voices_use_http_loopback( bool $use_http, string $site_key, string $method, string $path, array $args ): bool {
+	unset( $args );
+
+	if ( $use_http || 'events' !== $site_key || 'GET' !== $method || EXTRACHILL_ROADIE_VENUE_VOICES_PATH !== $path ) {
+		return $use_http;
+	}
+
+	$events_blog_id = function_exists( 'ec_get_blog_id' ) ? (int) ec_get_blog_id( 'events' ) : 0;
+	return $events_blog_id <= 0 || ! function_exists( 'get_current_blog_id' ) || $events_blog_id !== (int) get_current_blog_id();
+}
+add_filter( 'ec_cross_site_use_http_loopback', 'extrachill_roadie_venue_voices_use_http_loopback', 10, 5 );
+
 /** Register the reusable venue operator definition without a default instance. */
 function extrachill_roadie_register_venue_agent(): void {
 	if ( ! function_exists( 'wp_register_agent' ) ) {

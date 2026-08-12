@@ -23,6 +23,7 @@ $GLOBALS['_venue_materialized']  = array();
 $GLOBALS['_venue_next_agent_id'] = 100;
 $GLOBALS['_venue_community']     = array( 'public_voice' => null );
 $GLOBALS['_venue_principals']    = array();
+$GLOBALS['_venue_blog']          = 1;
 
 function add_action( string $hook, callable $callback ): void { $GLOBALS['_venue_actions'][ $hook ][] = $callback; }
 function add_filter( string $hook, callable $callback, int $priority = 10 ): void { $GLOBALS['_venue_filters'][ $hook ][ $priority ][] = $callback; }
@@ -48,6 +49,8 @@ function esc_url_raw( $value ): string { return (string) $value; }
 function is_wp_error( $value ): bool { return $value instanceof WP_Error; }
 function user_can( $user, string $capability ): bool { return (int) $user === 7 && in_array( $capability, array( 'access_roadie', 'manage_options' ), true ); }
 function get_current_network_id(): int { return 1; }
+function get_current_blog_id(): int { return (int) $GLOBALS['_venue_blog']; }
+function ec_get_blog_id( string $site = '' ): int { return 'events' === $site ? 7 : 1; }
 function untrailingslashit( string $value ): string { return rtrim( $value, '/' ); }
 function get_bloginfo( string $key ): string { unset( $key ); return 'Extra Chill'; }
 function home_url(): string { return 'https://extrachill.com'; }
@@ -84,7 +87,8 @@ function wp_materialize_agent_identity( string $slug, $store, array $args ) {
 }
 
 function ec_cross_site_rest_request( string $site, string $method, string $path, array $args = array() ) {
-	$GLOBALS['_venue_cross_calls'][] = compact( 'site', 'method', 'path', 'args' );
+	$use_http = apply_filters( 'ec_cross_site_use_http_loopback', false, $site, $method, $path, $args );
+	$GLOBALS['_venue_cross_calls'][] = compact( 'site', 'method', 'path', 'args', 'use_http' );
 	if ( 'events' === $site ) { return $GLOBALS['_venue_voices']; }
 	$GLOBALS['_venue_principals'][] = apply_filters( 'agents_api_execution_principal', null );
 	return $GLOBALS['_venue_community'];
@@ -118,6 +122,13 @@ venue_assert( $first['agent_id'] === $repeat['agent_id'], 'Materialization must 
 venue_assert( $first['agent_id'] !== $second['agent_id'], 'Two venues sharing one definition need distinct identities.' );
 venue_assert( 'venue:55' === $first['instance_key'] && 'venue:92' === $second['instance_key'], 'Exact canonical venue scope must persist.' );
 venue_assert( array() === $GLOBALS['_venue_cross_calls'][0]['args'], 'Events projection must receive no body or user override.' );
+venue_assert( true === $GLOBALS['_venue_cross_calls'][0]['use_http'], 'Venue projection must bootstrap the Events runtime from another site.' );
+venue_assert( false === extrachill_roadie_venue_voices_use_http_loopback( false, 'events', 'POST', EXTRACHILL_ROADIE_VENUE_VOICES_PATH, array() ), 'Non-GET requests must preserve the selected transport.' );
+venue_assert( false === extrachill_roadie_venue_voices_use_http_loopback( false, 'community', 'GET', EXTRACHILL_ROADIE_VENUE_VOICES_PATH, array() ), 'Non-Events requests must preserve the selected transport.' );
+venue_assert( false === extrachill_roadie_venue_voices_use_http_loopback( false, 'events', 'GET', '/wp/v2/venue', array() ), 'Unrelated Events requests must preserve the selected transport.' );
+$GLOBALS['_venue_blog'] = 7;
+venue_assert( false === extrachill_roadie_venue_voices_use_http_loopback( false, 'events', 'GET', EXTRACHILL_ROADIE_VENUE_VOICES_PATH, array() ), 'Events-local requests must stay in process.' );
+$GLOBALS['_venue_blog'] = 1;
 
 $GLOBALS['_venue_user'] = 8;
 $owner_b = extrachill_roadie_select_venue_agent( array( 'venue_term_id' => 55 ) );
