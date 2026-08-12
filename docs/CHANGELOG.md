@@ -2,6 +2,15 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.22.3] - 2026-08-12
+
+### Changed
+- resolve artist tools through owner abilities
+
+### Fixed
+- satisfy venue bootstrap release lint
+- bootstrap venue voice authority
+
 ## [0.22.2] - 2026-08-04
 
 ### Changed
