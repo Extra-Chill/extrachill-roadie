@@ -21,7 +21,7 @@ function extrachill_roadie_venue_voices_use_http_loopback( bool $use_http, strin
 	}
 
 	$events_blog_id = function_exists( 'ec_get_blog_id' ) ? (int) ec_get_blog_id( 'events' ) : 0;
-	return $events_blog_id <= 0 || ! function_exists( 'get_current_blog_id' ) || $events_blog_id !== (int) get_current_blog_id();
+	return 0 >= $events_blog_id || ! function_exists( 'get_current_blog_id' ) || (int) get_current_blog_id() !== $events_blog_id;
 }
 add_filter( 'ec_cross_site_use_http_loopback', 'extrachill_roadie_venue_voices_use_http_loopback', 10, 5 );
 
