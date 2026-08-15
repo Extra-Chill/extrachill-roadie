@@ -89,6 +89,10 @@ function home_url(): string {
 function wp_parse_url( string $url, int $component ) {
 	return parse_url( $url, $component );
 }
+function wp_salt( string $scheme = 'auth' ): string {
+	unset( $scheme );
+	return 'roadie-network-scope-test-salt';
+}
 
 function __( $text, $domain = null ): string {
 	unset( $domain );
@@ -198,8 +202,8 @@ $resolved     = apply_filters(
 	$valid_origin,
 	array( 'agent_slug' => 'roadie' )
 );
-roadie_scope_assert( $valid_origin['workspace'] === $resolved['workspace'], 'Validated stored workspace should be projected unchanged.' );
-roadie_scope_assert( array( 'wordpress' => array( 'blog_id' => 7 ) ) === $resolved['context'], 'Only canonical WordPress origin should be projected.' );
+roadie_scope_assert( $valid_origin['workspace'] === $resolved['context']['workspace'], 'Validated stored workspace should be projected into canonical resolver context.' );
+roadie_scope_assert( array( 'blog_id' => 7 ) === $resolved['context']['wordpress'], 'Only canonical WordPress origin should be projected.' );
 roadie_scope_assert( ! isset( $resolved['metadata'] ), 'Opaque pending-action metadata must not reach the resolver.' );
 roadie_scope_assert( ! isset( $resolved['context']['browser_supplied'] ), 'Browser client context must never become resolver context.' );
 
@@ -225,7 +229,7 @@ $network_resolved                              = apply_filters(
 	$network_origin,
 	array( 'agent_slug' => 'roadie' )
 );
-roadie_scope_assert( $network_origin['workspace'] === $network_resolved['workspace'], 'Current-network workspace origins should be accepted.' );
+roadie_scope_assert( $network_origin['workspace'] === $network_resolved['context']['workspace'], 'Current-network workspace origins should be accepted.' );
 roadie_scope_assert( 7 === $network_resolved['context']['wordpress']['blog_id'], 'Current-network workspace origins should retain their blog.' );
 
 $foreign_site = $valid_origin;
