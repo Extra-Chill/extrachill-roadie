@@ -87,7 +87,8 @@ class RoadieFACContractAbility {
 		if ( 'agents/resolve-pending-action' === $this->name ) {
 			$stored  = $GLOBALS['roadie_fac_pending'][ $input['action_id'] ?? '' ] ?? null;
 			$blog_id = (int) ( $input['context']['wordpress']['blog_id'] ?? 0 );
-			if ( ! is_array( $stored ) || $stored['blog_id'] !== $blog_id || $stored['workspace'] !== ( $input['workspace'] ?? null ) ) {
+			$workspace = is_array( $input['context']['workspace'] ?? null ) ? $input['context']['workspace'] : null;
+			if ( ! is_array( $stored ) || $stored['blog_id'] !== $blog_id || $stored['workspace'] !== $workspace ) {
 				return new WP_Error( 'pending_action_origin_denied' );
 			}
 			return array( 'action_id' => $input['action_id'], 'decision' => $input['decision'] );

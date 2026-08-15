@@ -181,6 +181,18 @@ function extrachill_roadie_frontend_chat_pending_action_resolve_input( $input, $
 		return is_array( $input ) ? $input : array();
 	}
 
+	return extrachill_roadie_apply_pending_action_origin( $input, $origin );
+}
+
+/**
+ * Validate and project an opaque pending-action origin into resolver context.
+ *
+ * @param array $input Canonical resolver input.
+ * @param array $origin Untrusted origin returned by a client.
+ * @return array
+ */
+function extrachill_roadie_apply_pending_action_origin( array $input, array $origin ): array {
+
 	$workspace = is_array( $origin['workspace'] ?? null ) ? $origin['workspace'] : array();
 	$metadata  = is_array( $origin['metadata'] ?? null ) ? $origin['metadata'] : array();
 	$dm_meta   = is_array( $metadata['datamachine'] ?? null ) ? $metadata['datamachine'] : array();
@@ -196,13 +208,23 @@ function extrachill_roadie_frontend_chat_pending_action_resolve_input( $input, $
 		return $input;
 	}
 
-	$input['workspace'] = array(
+	$context              = is_array( $input['context'] ?? null ) ? $input['context'] : array();
+	$context['workspace'] = array(
 		'workspace_type' => $workspace_type,
 		'workspace_id'   => $workspace_id,
 	);
-	$input['context']   = array( 'wordpress' => array( 'blog_id' => $blog_id ) );
+	$context['wordpress'] = array( 'blog_id' => $blog_id );
+	$context['_roadie_scope_proof'] = extrachill_roadie_pending_action_scope_proof( $input, $workspace_type, $workspace_id, $blog_id );
+	$input['context']     = $context;
 
 	return $input;
+}
+
+/** Build an unforgeable request-local proof for a validated resolver scope. */
+function extrachill_roadie_pending_action_scope_proof( array $input, string $workspace_type, string $workspace_id, int $blog_id ): string {
+	$action_id = sanitize_text_field( (string) ( $input['action_id'] ?? '' ) );
+	$message   = implode( '|', array( $action_id, $workspace_type, $workspace_id, (string) $blog_id ) );
+	return hash_hmac( 'sha256', $message, wp_salt( 'auth' ) );
 }
 add_filter( 'frontend_agent_chat_pending_action_resolve_input', 'extrachill_roadie_frontend_chat_pending_action_resolve_input', 10, 4 );
 
