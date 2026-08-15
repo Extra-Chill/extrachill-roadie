@@ -2,6 +2,11 @@
 
 All notable changes to Extra Chill Roadie will be documented in this file.
 
+## [0.23.0] - 2026-08-15
+
+### Added
+- compose Roadie context for canonical abilities
+
 ## [0.22.3] - 2026-08-12
 
 ### Changed
