@@ -37,7 +37,7 @@ function extrachill_roadie_register_venue_agent(): void {
 			'label'          => __( 'Venue Roadie', 'extrachill-roadie' ),
 			'description'    => __( 'A reusable venue-scoped Extra Chill operator.', 'extrachill-roadie' ),
 			'default_config' => array(
-				'default_model'    => 'gpt-5.5',
+				'default_model'    => 'gpt-5.6-sol',
 				'default_provider' => 'openai',
 				'description'      => 'A venue-scoped Extra Chill assistant.',
 				'tool_policy'      => array(
